@@ -1,0 +1,26 @@
+[pfilter]
+;Pulse Filter batch runs for DWEL basic reprocessing of Brisbane data of 2013
+n_case=1
+Run_Desc='DWEL processing of BU Brisbane data of 2013 - pulse filtering'
+log_file='F:\data\Australia\Calibration\6m\DWEL_test_pfilter.log'
+;
+datafile=[ $
+'F:\data\Australia\Calibration\6m\July30_6_1m_1064_Cube_nu_basefix_satfix.img' $
+]
+;
+ancfile=[ $
+'F:\data\Australia\Calibration\6m\July30_6_1m_1064_Cube_nu_basefix_satfix_ancillary.img'$
+]
+;
+outfile=[ $
+'F:\data\Australia\Calibration\6m\July30_6_1m_1064_Cube_nu_basefix_satfix_pfilter.img'$
+]
+;
+b_thresh=32
+r_thresh=0.4
+save_br=1
+Exit_IDL=0
+delete_input=0
+
+
+

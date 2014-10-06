@@ -1,0 +1,28 @@
+[project_at]
+;project_at batch runs for DWEL basic reprocessing of Brisbane data of 2013
+n_case=2
+Run_Desc='DWEL Brisbane 2013 data processing - AT projection'
+log_file='C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\DWEL_Kara5_2013_project_at.log'
+;
+image=[ $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1064_Cube_nu_basefix_pfilter.img', $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1548_Cube_nu_basefix_pfilter.img'$
+]
+;
+anc_name=[ $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1064_Cube_nu_basefix_ancillary.img', $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1548_Cube_nu_basefix_ancillary.img'$
+]
+;
+outfile=[ $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1064_Cube_nu_basefix_pfilter_at_project_testcmdmode.img', $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1548_Cube_nu_basefix_pfilter_at_project_testcmdmode.img'$
+]
+;
+output_resolution=[ $
+4.0, 4.0]
+Max_Zenith_Angle=[ $
+125.0, 125.0]
+;
+Exit_IDL=0
+delete_input=0

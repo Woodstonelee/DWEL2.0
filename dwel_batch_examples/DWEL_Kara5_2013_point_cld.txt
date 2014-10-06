@@ -1,0 +1,25 @@
+[point_cloud]
+;point cloud from at projected data for DWEL basic reprocessing of Brisbane data of 2013
+n_case=2
+Run_Desc='DWEL processing of BU Brisbane data of 2013 - Point Cloud'
+log_file='C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\DWEL_Brisbane_2013_point_cld.log'
+;
+datafile=[ $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1064_Cube_nu_basefix_pfilter_at_project.img', $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1548_Cube_nu_basefix_pfilter_at_project.img'$
+]
+;
+outfile=[ $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1064_Cube_nu_basefix_pfilter_at_project_ptcl.txt', $
+'C:\WorkSpace\Data\Oz_July_2013\Aug1_Kara5_C\Aug1_Kara5_C_1548_Cube_nu_basefix_pfilter_at_project_ptcl.txt'$
+]
+;
+Calib=[ $
+0, 0 $
+]
+;
+evi_az_n=[ $
+0, 0 $
+]
+;
+Exit_IDL=0
