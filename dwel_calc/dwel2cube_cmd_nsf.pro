@@ -5,7 +5,7 @@
 ; Adapted from heritage EVI code, 2012
 ; Revison: March 2014
 
-function CheckDWEL, DWEL_H5File, Wavelength, nadirelevshift,err
+function CheckDWEL, DWEL_H5File, Wavelength, nadirelevshift, err
   compile_opt idl2
 
   scanenc_ind = 0
@@ -18,10 +18,7 @@ function CheckDWEL, DWEL_H5File, Wavelength, nadirelevshift,err
   encoderset = h5d_open(fileid,'/Interpolated angles (Alt, Azm)')
   encoders = h5d_read(encoderset)
   dim_encoders = size(encoders, /dimensions)
-  
-  ;; correct the shift of nadir
-;  encoders[scanenc_ind, *] = ((encoders[scanenc_ind, *] - nadirelevshift) + 524288) mod 524288
-  
+    
   ;; use the difference between every two scan encoder values to
   ;; determine the actual start and ending shots and to remove the
   ;;dummy shots at the beginning and the end. 
@@ -102,10 +99,6 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
   fileid=h5f_open(DWEL_MetaInfo.DWELFileName)
   encoderset = h5d_open(fileid, '/Interpolated angles (Alt, Azm)')
   encoders = h5d_read(encoderset)
-  ;; virtually reverse the rotation direction of DWEL by changing the rotatary encoder values
-  ;encoders[1, *] =  524288 - encoders[1, *]
-  ; correct the shift of nadir
-;  encoders[scanenc_ind, *] = ((encoders[scanenc_ind, *] - DWEL_MetaInfo.NadirScanEncoder) + 524288) mod 524288
   
   ;; open the dataset of waveform and get the space of the dataset. 
   Waveset_Name = '/'+strtrim(string(Wavelength), 2)+' Waveform Data'
@@ -115,13 +108,7 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
   
   openw, DataCubeFID, DataCube_File, /get_lun
   openw, AncillaryFID, AncillaryFile, /get_lun
-  
-  ; get the smallest and largest elevation encoder values.
-  ; the zenith angles of pixels in each scan line (a row in the produced image) are assumed evenly distributed between the lower and upper elevation encoders. 
-  ; each shot in one scan is sequently put into the pixel where its zenith angle is closest to the zenith of the shot. 
-  ;; LBScanEncoder = min(encoders[0, DWEL_MetaInfo.FirstShotInd:DWEL_MetaInfo.LastShotInd])
-  ;; UBScanEncoder = max(encoders[0, DWEL_MetaInfo.FirstShotInd:DWEL_MetaInfo.LastShotInd])
-  
+    
   DataArray = intarr(DWEL_MetaInfo.NoShotsPerScan, DWEL_MetaInfo.NoSamplesPerShot)
   AncillaryArray = lonarr(DWEL_MetaInfo.NoShotsPerScan,9)
   Trigger = 0B
@@ -135,8 +122,6 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
   ShotAzim=0.0
   
   shotind = DWEL_MetaInfo.FirstShotInd
-  ;; PixelLoc = indgen(DWEL_MetaInfo.NoShotsPerScan)
-  ;; PixelScanEncoder = LBScanEncoder + PixelLoc*(UBScanEncoder-LBScanEncoder)/(DWEL_MetaInfo.NoShotsPerScan-1)
   NumBlank = 0
   BlankVec = bytarr(DWEL_MetaInfo.NoShotsPerScan)
   ZeroWaveform = intarr(DWEL_MetaInfo.NoSamplesPerShot)
@@ -148,42 +133,9 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
     ;;dummy pixels to fill the extra space in this row. 
     ScanEncoderVec =  long(encoders[scanenc_ind, DWEL_MetaInfo.ShotStart[i]:DWEL_MetaInfo.ShotEnd[i]]) 
     ;; check how many blank pixels there will be. Insert the blank
-    ;; pixels to the largest gaps between neighboring scan encoder values. 
+    ;; pixels to fill the gap.
     NumBlank = DWEL_MetaInfo.NoShotsPerScan - size(ScanEncoderVec,/n_elements)
     if NumBlank gt 0 then begin
-;      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;      ; Gap between neighboring scan encoder values (early minus later, only positive difference is accepted as gap since the scan encoder values are supposed decreasing)
-;      DiffScanEncoderVec = ScanEncoderVec[0:DWEL_MetaInfo.ShotNum[i]-2]-ScanEncoderVec[1:DWEL_MetaInfo.ShotNum[i]-1]
-;      ; add the gap between the first shot in this scan line and the upper boundary of all elevation encoder, 
-;      ; and the gap between the last shot in this scan line and the lower boundary of all elevation encoder values.
-;      DiffScanEncoderVec = [UBScanEncoder-ScanEncoderVec[0], DiffScanEncoderVec, ScanEncoderVec[DWEL_MetaInfo.ShotNum[i]-1]-LBScanEncoder]
-;      DescendingInd = reverse(sort(DiffScanEncoderVec))
-;      ; check how many blank pixels each gap can accomodate when the angular size of each pixel is given by LB, UB and ShotNum. 
-;      NumPotentialBlankVec = round(DiffScanEncoderVec[DescendingInd]/(UBScanEncoder-LBScanEncoder)*(DWEL_MetaInfo.NoShotsPerScan) + 0.5) - 1
-;      NumPotentialBlankVec[where(NumPotentialBlankVec lt 0)]=0
-;      CumPotentialBlankVec = total(NumPotentialBlankVec[0:(NumBlank lt size(NumPotentialBlankVec, /n_elements) ? NumBlank : size(NumPotentialBlankVec, /n_elements))-1], /cumulative)
-;      NumGap = where(CumPotentialBlankVec ge NumBlank) + 1
-;      NumGap = NumGap[0]
-;      if NumGap gt 1 then begin
-;        NumActualBlankVec = [NumPotentialBlankVec[0:NumGap-2], NumBlank-CumPotentialBlankVec[NumGap-2]]
-;      endif else begin
-;        NumActualBlankVec = NumBlank
-;        if NumGap eq 0 then begin
-;          NumGap = NumBlank
-;        endif
-;      endelse
-;      BlankInd = DescendingInd[0:NumGap-1] ; the blank locations in the ShotNum of this scan line
-;      AscendingIndBlankInd = sort(BlankInd)
-;      BlankInd = BlankInd[AscendingIndBlankInd]
-;      NumActualBlankVec = NumActualBlankVec[AscendingIndBlankInd]
-;      BlankPixelLoc = indgen(NumActualBlankVec[0])+BlankInd[0] ; the blank locations in the NoShotsPerScan
-;      for bi = 1, NumGap-1, 1 do begin
-;        BlankPixelLoc = [BlankPixelLoc, $
-;          indgen(NumActualBlankVec[bi])+ $
-;          BlankInd[bi]+total(NumActualBlankVec[0:bi-1]) ]
-;      endfor
-;      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
       ; simply insert blank pixels at the end of each scan line
       BlankPixelLoc = indgen(NumBlank) + DWEL_MetaInfo.NoShotsPerScan-NumBlank
@@ -202,8 +154,17 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
          DataArray[j,*] = ZeroWaveform
          continue
       endif
-      H5S_SELECT_HYPERSLAB, wave_space, [[shotind], [0]], [[1], [DWEL_MetaInfo.NoSamplesPerShot]], /reset
-      Waveform = h5d_read(waveset, file_space=wave_space, MEMORY_SPACE = memspace)
+      H5S_SELECT_HYPERSLAB, wave_space, [[shotind], [0]], [[1], $
+        [DWEL_MetaInfo.NoSamplesPerShot]], /reset
+      Waveform = h5d_read(waveset, file_space=wave_space, MEMORY_SPACE = $
+        memspace)
+      ;; As of 20140913, one waveform from NSF DWEL has first two samples storing
+      ;; shot sequence number and ??? number according to Kuravi. Simply
+      ;; overwrite them here. May need to put these two numbers into ancillary
+      ;; file if they are found to be informative later.
+      Waveform[0] = Waveform[2]
+      Waveform[1] = Waveform[2]
+
       WaveformMean = mean(waveform)
       WaveformMax = max(waveform, max_I)
       DataArray[j,*] = Waveform
@@ -220,7 +181,7 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
         WaveformMax = 0L
         DataArray[j,*] = ZeroWaveform
       endif else begin
-      ShotZen = ((double(182196) - double(ScanEncoder)) / double(524288)) * 360.0d0
+      ShotZen = ((double(DWEL_MetaInfo.NadirScanEncoder) - double(ScanEncoder)) / double(524288)) * 360.0d0
       ShotAzim = ((double(524288)-double(RotaryEncoder))/double(524288)) * 360.0d0
 ;      ;;;;;; temporarily fake azimuth angle b/c of the wrong azimuth encoders. 
 ;      ShotAzim = 2*(i+0.5)*0.001/!pi*180.0
@@ -271,8 +232,8 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
   
 end
 
-pro dwel2cube_cmd_oz, DWEL_H5File,Config_File,DataCube_File,Wavelength,Wavelength_Label, $
-                   DWEL_Height,beam_div,srate,nadirelevshift,err_flag
+pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
+  Wavelength_Label, DWEL_Height, beam_div, srate, err_flag, nadirshift=nadirelevshift
 ;;
 ;; Because the names of the waveform datasets in HDF5 files were
 ;;incorrectly labeled as of March 2014, including all data from CA
@@ -284,8 +245,8 @@ pro dwel2cube_cmd_oz, DWEL_H5File,Config_File,DataCube_File,Wavelength,Wavelengt
 ;;the CORRECT wavelength number.
   
   compile_opt idl2
-;  envi, /restore_base_save_files
-;  envi_batch_init, /no_status_window
+  envi, /restore_base_save_files
+  envi_batch_init, /no_status_window
 
   inlun=30
   anc_name=''
@@ -294,7 +255,16 @@ pro dwel2cube_cmd_oz, DWEL_H5File,Config_File,DataCube_File,Wavelength,Wavelengt
   AncillaryFile=''
   err_flag=0
   err=0
-  
+
+  ;; give a default scan encoder value of nadir shift here if you get one so
+  ;; that you don't have to put nadir shift in the command everytime
+  if n_elements(nadirelevshift) ne 0 or arg_present(k) then begin ; function
+                                ; calling gives nadir shift value
+    
+  endif else begin ; nadir shift value is not given, use default values
+    nadirelevshift = 130289 ; this default value was from NSF DWEL 2014/05/03
+  endelse 
+
   DWEL_MetaInfo = CheckDWEL(DWEL_H5File,Wavelength,nadirelevshift,err)
   
   if (err ne 0) then begin
@@ -323,12 +293,12 @@ pro dwel2cube_cmd_oz, DWEL_H5File,Config_File,DataCube_File,Wavelength,Wavelengt
     err_flag=2
     goto,out
   endif
-print,'consum=',consum
+  print,'consum=',consum
 
-  Name_Info=['Program=DWEL2cube_cmd_oz',$
+  Name_Info=['Program=DWEL2cube_cmd_nsf',$
              'Original DWEL HDF File='+strtrim(f_base,2)]
   Site_Info=[ $
-  'Scan Description='+strtrim('DWEL_Oz Scan: '+strtrim(consum,2),2),$
+  'Scan Description='+strtrim('DWEL_nsf Scan: '+strtrim(consum,2),2),$
   'DWEL Date Time='+strtrim(date_time,2),$
   'Processing Date Time='+strtrim(systime(),2)]
   Scan_Info=[ $
@@ -370,11 +340,11 @@ print,'consum=',consum
     bnames=band_names, $
     wl=wl_out, /write
 
-envi_open_file, DataCube_File,r_fid=out_fid,/no_interactive_query,/no_realize
+  envi_open_file, DataCube_File,r_fid=out_fid,/no_interactive_query,/no_realize
 
-tname=''
-envi_file_query,out_fid,fname=tname
-print,'cube file name='+strtrim(tname,2)
+  tname=''
+  envi_file_query,out_fid,fname=tname
+  print,'cube file name='+strtrim(tname,2)
 
   envi_assign_header_value, fid=out_fid, keyword='DWEL_Scan_Info', $
       value=DWEL_Scan_Info
@@ -385,7 +355,6 @@ print,'cube file name='+strtrim(tname,2)
   
   envi_file_mng, id=out_fid,/remove
   
-;  anc_name=strtrim(strmid(DataCube_File,0,strpos(DataCube_File, '.', /reverse_search))+'_ancillary.img',2)
   bnames=['Non Triggers','Sun Sensor','Scan Encoder','Rotary Encoder', $
     'Laser Power','Waveform Mean','Mask','Zenith','Azimuth']
   ENVI_SETUP_HEAD, fname=AncillaryFile, $
@@ -393,11 +362,11 @@ print,'cube file name='+strtrim(tname,2)
     interleave=HeaderInfo.interleave, data_type=HeaderInfo.ancillarydatatype, $
     offset=HeaderInfo.offset,bnames=bnames,/write
 
-envi_open_file, AncillaryFile,r_fid=anc_fid,/no_interactive_query,/no_realize
+  envi_open_file, AncillaryFile,r_fid=anc_fid,/no_interactive_query,/no_realize
 
-tname=''
-envi_file_query,anc_fid,fname=tname
-print,'anc file name='+strtrim(tname,2)
+  tname=''
+  envi_file_query,anc_fid,fname=tname
+  print,'anc file name='+strtrim(tname,2)
 
   envi_assign_header_value, fid=anc_fid, $   
     keyword='DWEL_Scan_Info', $
@@ -414,6 +383,6 @@ out:
   envi_file_mng, id=out_fid,/remove
   envi_file_mng, id=anc_fid,/remove
   free_lun,inlun,/force
-  if (err_flag ne 0) then print,'Returning with error from dwel2cube_cmd_oz'
+  if (err_flag ne 0) then print,'Returning with error from dwel2cube_cmd'
   heap_gc,/verbose
 end
