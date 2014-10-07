@@ -295,7 +295,7 @@ pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
   endif
   print,'consum=',consum
 
-  Name_Info=['Program=DWEL2cube_cmd_nsf',$
+  Name_Info=['Program=dwel2cube_cmd_nsf, import DWEL HDF5 file to ENVI cube image',$
              'Original DWEL HDF File='+strtrim(f_base,2)]
   Site_Info=[ $
   'Scan Description='+strtrim('DWEL_nsf Scan: '+strtrim(consum,2),2),$

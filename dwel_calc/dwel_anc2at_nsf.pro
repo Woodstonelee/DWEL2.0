@@ -8,13 +8,15 @@ pro DWEL_val_block
   eta=1.0e-7
 end
 
+pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
+  output_resolution, zen_tweak, err, Overlap=overlap
 ; Max_Zenith_Angle: in unit of degree
 ; output_resolution: in unit of mrad
-pro DWEL_anc2at_oz, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, output_resolution, zen_tweak, err
+; overlap: azimuth range of overlapping area, in unit of degree
 
   compile_opt idl2
-;  envi, /restore_base_save_files
-;  envi_batch_init, /no_status_window
+  envi, /restore_base_save_files
+  envi_batch_init, /no_status_window
 
   ;;;;;;;;;;;;;;;;;;;;;;;;
   ; some default paramters
@@ -34,20 +36,21 @@ pro DWEL_anc2at_oz, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, output_resolu
   
   envi_open_file, DWEL_Anc_File,r_fid=anc_fid,/no_interactive_query,/no_realize
   if (anc_fid eq -1) then begin
-    print,'Processing stopped! Error opening ancillary data file '+strtrim(DWEL_Anc_File,2)
+    print, 'Processing stopped! Error opening ancillary data file ' + $
+      strtrim(DWEL_Anc_File,2)
     err=1
     goto, cleanup
   endif
   
   ;get the input image dimensions and other info
-  envi_file_query, anc_fid, ns=Nshots, nl=Nscans, nb=nb_anc, $
-                   data_type=type, file_type=ftype, dims=dims
+  envi_file_query, anc_fid, ns=nshots, nl=nscans, nb=nb_anc, data_type=type, $
+    file_type=ftype, dims=dims
 
-  samples=Nshots
-  lines=Nscans
+  samples=nshots
+  lines=nscans
   bands=nb_anc
   
-  print,'ancfile type=',ftype
+  print, 'ancfile type=', ftype
   
   band_pos=indgen(bands)
   
@@ -135,52 +138,118 @@ pro DWEL_anc2at_oz, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, output_resolu
   print,'Input information from input files complete'
 
   ;get the mask
-  Mask_all=bytarr(Nshots,Nscans)+1b
-  dims=[-1,0,Nshots-1,0,Nscans-1]
+  Mask_all=bytarr(nshots,nscans)+1b
+  dims=[-1,0,nshots-1,0,nscans-1]
   Mask_all=byte(envi_get_data(fid=anc_fid,dims=dims,pos=6))
   ;; get the waveform maximum image
   wfmax = long(envi_get_data(fid=anc_fid,dims=dims,pos=5))
   
   ;get encoder positions!
-  ShotZen=fltarr(Nshots,Nscans)
-  ShotAZim=fltarr(Nshots,Nscans)
+  ShotZen=fltarr(nshots,nscans)
+  ShotAZim=fltarr(nshots,nscans)
   ShotZen=float(envi_get_data(fid=anc_fid,dims=dims,pos=2))
   ShotAZim=float(envi_get_data(fid=anc_fid,dims=dims,pos=3))
   
   envi_file_mng,id=anc_fid,/remove
 
-sel=0
-bad=50
-bad_end=10
-RotEnc_max=524288.0d0
-Rot_med=double(median(ShotAzim,dimension=1))
-;
-Rot_med=reform(Rot_med[bad:Nscans-1])
-pos=where(Rot_med gt 0,npos)
-if (npos gt 0) then Rot_med=reform(Rot_med[pos])
-numval=n_elements(Rot_med)
+  bad=50 ;; always discard the first 50 scan lines of possible bad rotary
+  ;; encoders due to intertial of the rotation or lack of lock-in of rotary
+  ;; encoder. 
+  bad_end=10 ;; always discard the last 10 scan lines just in case of any funky
+  ;; error. 
+  ;; set the mask for overlapping, 0: pixels to be discarded.
+  ;; here we are using ENCODER values, NOT actual angular values. 
+  ;; by default, i.e. no overlap is given, do NOT remove overlap and leave the
+  ;; scan as it is collected
+  ;; Now calcualte the azimuth angle of each scan line
+  tmpazim = fltarr(nscans)
+  for i=0,nscans-1 do begin
+    tmp = ShotAzim[where(Mask_all[*, i]), i]
+    tmpazim[i] = median(tmp)
+  endfor
+  ;; if the decreasing rotary encoder passes through 0 and 524288 (2*pi), add a
+  ;; round of 524288 (2*pi) so that later angular calculation is easier. 
+  tmpdiff = tmpazim[0:nscans-2] - tmpazim[1:nscans-1]
+  tmppos = where(tmpdiff lt -524288.0d0/2.0, tmpcount)
+  tmpazim = tmpazim[0:tmppos[0]] + 524288.0d0
+  ;; calculate overlap azimuth range in the scan
+  az_range = tmpazim[bad+1] - tmpazim[nscans-1-bad_end]
+  scan_overlap = (az_range - 524288.0d0/2.0) / 524288.0d0 * 360.0
+  if scan_overlap lt 0 then begin
+    scan_overlap = 0.0
+  endif 
+  if n_elements(overlap) ne 0 or arg_present(overlap) then begin
+    ;; overlap is given
+    ;; set mask according to azimuth angles
+    ;; we've found that the azimuth encoders of the first few scan lines
+    ;; of a scan could be of no change possibly due to the inertial of the
+    ;;instrument rotation or lack of lock-in of rotary encoder. Thus here we
+    ;;retain the last 180 degrees of scan lines and discard the first few scan
+    ;;lines with possibly bad azimuth values. 
+    firstazim = tmpazim[nscans-1-bad_end] + 524288.0d0/2.0 + float(overlap)/360.0*524288.0d0
+    tmppos = where(tmpazim gt firstazim, tmpcount)
+    if tmpcount gt 0 then begin
+      if tmppos[tmpcount-1] gt bad then begin
+        sel = tmppos[tmpcount-1]
+      endif else begin
+        sel = bad
+      endelse 
+    endif else begin
+      sel = bad
+    endelse 
+    Mask_all[*, 0:sel] = 0
+    print, 'first scan line in the projection = ', sel+1
+    Mask_all[*, (nscans-bad_end):(nscans-1)] = 0
+    print, 'last scan line in the projection = ', nscans-bad_end-1
+    print, 'Given overlap azimuth = ', overlap
+    print, 'Scan''s own overlap azimuth = ', scan_overlap
+    if overlap gt scan_overlap then begin
+      overlap = scan_overlap
+    endif 
+  endif else begin
+    ;; no overlap is given
+    ;; do not change the mask and use all valid pixels in the projection
+    ;; calculate the overlapping azimuth angle in the scan
+    Mask_all[*, 0:bad] = 0
+    print, 'first scan line in the projection = ', bad+1
+    Mask_all[*, (nscans-bad_end):(nscans-1)] = 0
+    print, 'last scan line in the projection = ', nscans-bad_end-1
+    print, 'Project the whole scan, overlap azimuth = ', scan_overlap
+    overlap = scan_overlap
+  endelse 
 
-Rot_med_compl=Rot_med-RotEnc_Max/2.0d0
-posc=where(Rot_med_compl lt 0.0,nposc)
-if (nposc gt 0) then Rot_med_compl[posc]=Rot_med_compl[posc]+RotEnc_Max
-posc=0b
+  ;; sel=0
+  ;; bad=50
+  ;; bad_end=10
+  ;; RotEnc_max=524288.0d0
+  ;; Rot_med=double(median(ShotAzim,dimension=1))
+  ;; ;
+  ;; Rot_med=reform(Rot_med[bad:nscans-1])
+  ;; pos=where(Rot_med gt 0,npos)
+  ;; if (npos gt 0) then Rot_med=reform(Rot_med[pos])
+  ;; numval=n_elements(Rot_med)
 
-valend=Rot_med[numval-bad_end-1]
-posc=where(Rot_med_compl lt valend,nposc)
-if (nposc gt 0) then begin
-  sel=max([bad,pos[posc[0]]+bad])
-endif else begin
-  sel=bad
-endelse
-posc=0b
-pos=0b
-print,'final sel=',sel
-;===========================================
+  ;; Rot_med_compl=Rot_med-RotEnc_Max/2.0d0
+  ;; posc=where(Rot_med_compl lt 0.0,nposc)
+  ;; if (nposc gt 0) then Rot_med_compl[posc]=Rot_med_compl[posc]+RotEnc_Max
+  ;; posc=0b
+
+  ;; valend=Rot_med[numval-bad_end-1]
+  ;; posc=where(Rot_med_compl lt valend,nposc)
+  ;; if (nposc gt 0) then begin
+  ;;   sel=max([bad,pos[posc[0]]+bad])
+  ;; endif else begin
+  ;;   sel=bad
+  ;; endelse
+  ;; posc=0b
+  ;; pos=0b
+  ;; print,'final sel=',sel
+  ;; ;===========================================
 
   ;set up a structure and push it onto the heap
   sav={ $
-       Nshots:Nshots,$
-       Nscans:Nscans,$
+       Nshots:nshots,$
+       Nscans:nscans,$
        ShotZen:ShotZen,$
        ShotAzim:ShotAzim $
        }
@@ -188,7 +257,7 @@ print,'final sel=',sel
   ;now put the data on the heap with a pointer
   p_stat=ptr_new(sav,/no_copy)
 
-  status = DWEL_set_theta_phi_oz(p_stat,zen_tweak)
+  status = DWEL_set_theta_phi_nsf(p_stat,zen_tweak)
   
   ;put the results into the local arrays
   ShotZen=(*p_stat).ShotZen
@@ -202,9 +271,9 @@ print,'final sel=',sel
   if (npos gt 0) then Mask_all[pos]=0
   pos=0b
   
-  ;now introduce the new mask to ensure minimum wrap
-  mask_all[*,0:sel]=0
-  mask_all[*,(nscans-bad_end):(nscans-1)]=0
+  ;; ;now introduce the new mask to ensure minimum wrap
+  ;; mask_all[*,0:sel]=0
+  ;; mask_all[*,(nscans-bad_end):(nscans-1)]=0
   
   srate_set=0b
   ;set the default sampling rate
@@ -288,8 +357,8 @@ print,'final sel=',sel
   
   ;now convert the data to (x,y) coordinates
   
-  ;print, 'Andrieu_transpose'
-  status=t_Andrieu_tp2xy(Nshots*Nscans,ShotZen,ShotAzim,x_proj,y_proj)
+  print, 'Andrieu_transpose'
+  status=t_Andrieu_tp2xy(nshots*nscans,ShotZen,ShotAzim,x_proj,y_proj)
   
   ShotZen=0b
   ShotAzim=0b
@@ -310,7 +379,7 @@ print,'final sel=',sel
   counter=0L
   Tot_Count=0L
   gotind=0b
-  a_ref=[Nshots,Nscans]
+  a_ref=[nshots,nscans]
         
   ;Now set up the pointer array to the cell data and all is ready
   
@@ -324,6 +393,8 @@ print,'final sel=',sel
   A_phi=make_array(nl_out,/double)
   pos_ind=0b
   
+  ;; set a scale for angular output
+  angle_scale = 100.0
   ;now loop over the cells and set up pointers to the original image cells
   ;involved in the output spatial cells
   for i=0, nl_out-1 do begin
@@ -352,7 +423,11 @@ print,'final sel=',sel
           endelse
           
           if (gotind) then begin
-            pos_ind=[[pos_ind],[temp]] ; pos_ind is n*3 array, n is the number of shots in the line i of the projection, first and second columns are the pixel location in the original data cube, the third line is the column j of the projection. 
+            pos_ind=[[pos_ind],[temp]] ; pos_ind is n*3 array, n is the number
+                                ; of shots in the line i of the projection,
+                                ; first and second columns are the pixel
+                                ; location in the original data cube, the third
+                                ; column is the column j of the projection. 
           endif else begin
             pos_ind=[[temp]]
             gotind=1b
@@ -381,8 +456,8 @@ print,'final sel=',sel
         status=t_Andrieu_xy2tp(1,x,y,th,ph)
         A_theta[j]=th
         A_phi[i]=ph
-        theta[j,i]=round(100.0*th)
-        phi[j,i]=round(100.0*ph)
+        theta[j,i]=round(angle_scale*th)
+        phi[j,i]=round(angle_scale*ph)
       endfor
       ;print,'Hit an empty line at i=',i
     endelse
@@ -410,18 +485,20 @@ print,'final sel=',sel
   endelse
   
   DWEL_Anc2AT_info=[ $
-  'Program='+'DWEL Ancillary to AT projection Qlook',$
-  'Processing Date Time='+strtrim(systime(),2),$
-  'Projection type='+ptype,$
-  'Projection name='+pname,$
-  'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
-  'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
-  'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
-  'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
-  'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
-  'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
-  'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
-  'Output scale='+strtrim(string(scaler,format='(f10.2)'),2) $
+    'Program='+'dwel_anc2at_nsf, DWEL Ancillary to AT projection Qlook',$
+    'Processing Date Time='+strtrim(systime(),2),$
+    'Projection type='+ptype,$
+    'Projection name='+pname,$
+    'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
+    'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
+    'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
+    'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
+    'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
+    'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
+    'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
+    'Output scale='+strtrim(string(scaler,format='(f10.2)'),2), $
+    'Angular scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
+    'Overlap azimuth='+strtrim(string(overlap, format='(f10.3)'), 2) $
   ]
   DWEL_Anc2AT_info=strtrim(DWEL_Anc2AT_info,2)
   
@@ -431,8 +508,8 @@ print,'final sel=',sel
   print,'pre-processing done - projecting the image!'
     
   ;set up the arrays for data and output
-  data=make_array(Nshots,1,/double)
-  temp=make_array(Nshots,1,/double)
+  data = make_array(nshots,1,/double)
+  temp = make_array(nshots,1,/double)
   maxwf = make_array(ns_out, nl_out, /double)
 
   num_avg=make_array(ns_out,nl_out,/long)
@@ -443,7 +520,7 @@ print,'final sel=',sel
     current=-1
     ;count=0L
     temp=make_array(ns_out,1,/double)
-  ;help,*(p_list[k])
+    ;help,*(p_list[k])
     pos_nz=where(num_val[*,k] gt 0,n_pos)
     if (n_pos gt 0) then begin
       pos_ind=*(p_list[k])
@@ -457,7 +534,7 @@ print,'final sel=',sel
           ;count=count+1L
           current=lin
         endif
-  ;do something!
+        ;do something!
         temp[pos_ind[2,point],*]=temp[pos_ind[2,point],*]+ $
         data[pos_ind[0,point],*]
         num_avg[pos_ind[2,point],k]=num_avg[pos_ind[2,point],k]+1L
@@ -498,13 +575,6 @@ print,'final sel=',sel
     
   ;now write out the extra information image
   ;; set up the file name of the extra information image
-  n_base=strlen(DWEL_AT_File)
-  n_dot=strpos(DWEL_AT_File,'.',/reverse_search)
-;  if((n_dot le 0) or (n_base-n_dot ne 4)) then begin
-;    outextra[j]=DWEL_AT_File+'_extrainfo.img'
-;  endif else begin
-;    outextra=strmid(DWEL_AT_File,0,n_dot)+'_extrainfo.img'
-;  endelse
   outextra=DWEL_AT_File
   ;Open output file
   text_err=0
@@ -519,13 +589,11 @@ print,'final sel=',sel
   writeu,ofile,long(theta)
   writeu,ofile,long(phi)
   writeu,ofile,long(mask)
-;;  writeu,ofile,fix(round(meanwf))
-;  writeu,ofile,round(maxwf_out)
+;;  writeu,ofile,round(maxwf_out)
   writeu,ofile,round(maxwf)
   free_lun, ofile,/force
   
   descrip='Numbers and info for '+strtrim(DWEL_Anc_File,2)
-;  bnames=['Number Averaged','Zenith','Azimuth','Mask','Mean','Mean_r','Mean_r2','Star_r','Star_RMS']
   bnames=['Number Averaged','Zenith','Azimuth','Mask','Max']
   envi_setup_head,fname=outextra,ns=ns_out,nl=nl_out,nb=5,$
   xstart=0,ystart=0,$
@@ -581,6 +649,6 @@ print,'final sel=',sel
   endif
   p_list=0b
   
-  if (err gt 0) then print,'Error called from dwel_anc2at'
+  if (err gt 0) then print,'Error called from dwel_anc2at_nsf'
   
 end
