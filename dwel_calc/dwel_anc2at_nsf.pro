@@ -405,7 +405,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
 
     if (count_y gt 0) then begin
       for j=0,ns_out-1 do begin
-        x=float(j)*h
+        x=float(ns_out-1-j)*h
         ;get four corners of the pixel
         x_min=x-h2
         x_max=x+h2
@@ -450,7 +450,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
       endif
     endif else begin
       for j=0,ns_out-1 do begin
-        x=float(j)*h
+        x=float(ns_out-1-j)*h
         num_val[j,i]=0L
         mask[j,i]=0L
         status=t_Andrieu_xy2tp(1,x,y,th,ph)

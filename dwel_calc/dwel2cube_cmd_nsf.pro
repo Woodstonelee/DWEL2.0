@@ -188,6 +188,7 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
 ;      RotaryEncoder = fix(ShotAzim/360.0*double(524288), type=size(ScanEncoder, /type))
 
       if (ShotZen lt -180.0) then ShotZen=ShotZen+360.0
+      if (ShotZen gt 180.0) then ShotZen = ShotZen - 360.0
       
       if (ShotZen lt 0.0) then begin
         ShotZen=-ShotZen
@@ -262,7 +263,7 @@ pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
                                 ; calling gives nadir shift value
     
   endif else begin ; nadir shift value is not given, use default values
-    nadirelevshift = 130289 ; this default value was from NSF DWEL 2014/05/03
+    nadirelevshift = 392433 ; 130289 ; this default value was from NSF DWEL 2014/05/03
   endelse 
 
   DWEL_MetaInfo = CheckDWEL(DWEL_H5File,Wavelength,nadirelevshift,err)

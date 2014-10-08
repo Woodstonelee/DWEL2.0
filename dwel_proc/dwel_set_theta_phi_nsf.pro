@@ -1,7 +1,7 @@
 function dwel_set_theta_phi_nsf, pstat,zen_tweak
   compile_opt idl2
 
-  zenith_count=130289L+long(zen_tweak) ; from NSF DWEL 2014/05/03
+  zenith_count = 392433L + long(zen_tweak) ; 130289L+long(zen_tweak) ; from NSF DWEL 2014/05/03
 
   ShotZen=fltarr((*pstat).NShots,(*pstat).Nscans)
   ShotAzim=fltarr((*pstat).Nshots,(*pstat).Nscans)
@@ -17,6 +17,9 @@ function dwel_set_theta_phi_nsf, pstat,zen_tweak
   index=where(ShotZen lt -180.0,count)
   if (count gt 0) then ShotZen[index]=ShotZen[index]+360.0d0
   index=0b
+  index = where(ShotZen gt 180.0, count)
+  if (count gt 0) then ShotZen[index] = ShotZen[index] - 360.0d0
+  index = 0b
   ;fix convention of zenith and azimuth
   index = where(ShotZen lt 0.0, count)
   if (count gt 0) then begin
