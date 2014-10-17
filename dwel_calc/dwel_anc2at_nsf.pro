@@ -9,15 +9,15 @@ pro DWEL_val_block
 end
 
 pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
-  output_resolution, zen_tweak, err, Overlap=overlap
-; Max_Zenith_Angle: in unit of degree
-; output_resolution: in unit of mrad
-; overlap: azimuth range of overlapping area, in unit of degree
-
+    output_resolution, zen_tweak, err, Overlap=overlap
+  ; Max_Zenith_Angle: in unit of degree
+  ; output_resolution: in unit of mrad
+  ; overlap: azimuth range of overlapping area, in unit of degree
+    
   compile_opt idl2
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
-
+  
   ;;;;;;;;;;;;;;;;;;;;;;;;
   ; some default paramters
   def_ifov_x=4.0
@@ -45,7 +45,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;get the input image dimensions and other info
   envi_file_query, anc_fid, ns=nshots, nl=nscans, nb=nb_anc, data_type=type, $
     file_type=ftype, dims=dims
-
+    
   samples=nshots
   lines=nscans
   bands=nb_anc
@@ -56,31 +56,31 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   x_range=[dims[1],dims[2]]
   y_range=[dims[3],dims[4]]
-
+  
   ;set the type of file
   ft_nam='Unknown'
   case ftype of
-  0: ft_nam='BSQ'
-  1: ft_nam='BIL'
-  2: ft_nam='BIP'
+    0: ft_nam='BSQ'
+    1: ft_nam='BIL'
+    2: ft_nam='BIP'
   endcase
-
+  
   ;set the data type
   dt_nam='Unknown'
   case type of
-  1: dt_nam='Byte'
-  2: dt_nam='Int'
-  3: dt_nam='Long Int'
-  4: dt_nam='Floating Point'
-  5: dt_nam='DP Floating Point'
-  6: dt_nam='Complex'
-  9: dt_nam='DP Complex'
-  12: dt_nam='Unsigned Int'
-  13: dt_nam='Unsigned Long Int'
-  14: dt_nam='64-bit Int'
-  15: dt_nam='64-bit Long Int'
+    1: dt_nam='Byte'
+    2: dt_nam='Int'
+    3: dt_nam='Long Int'
+    4: dt_nam='Floating Point'
+    5: dt_nam='DP Floating Point'
+    6: dt_nam='Complex'
+    9: dt_nam='DP Complex'
+    12: dt_nam='Unsigned Int'
+    13: dt_nam='Unsigned Long Int'
+    14: dt_nam='64-bit Int'
+    15: dt_nam='64-bit Long Int'
   endcase
-
+  
   ;get path and image name as separate strings
   last=strpos(DWEL_Anc_File,path_sep(),/reverse_search)
   f_path=strmid(DWEL_Anc_File,0,last+1)
@@ -88,9 +88,9 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;now get the EVI headers that are present
   ;set up a base structure for the EVI headers
   DWEL_headers={ $
-       f_base:f_base $
-       }
-  
+    f_base:f_base $
+    }
+    
   ;find all of the EVI headers in the hdr file as defined by FID
   status=DWEL_get_headers(anc_fid,DWEL_headers)
   
@@ -134,9 +134,9 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
       endelse
     endelse
   endelse
-
+  
   print,'Input information from input files complete'
-
+  
   ;get the mask
   Mask_all=bytarr(nshots,nscans)+1b
   dims=[-1,0,nshots-1,0,nscans-1]
@@ -151,14 +151,14 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ShotAZim=float(envi_get_data(fid=anc_fid,dims=dims,pos=3))
   
   envi_file_mng,id=anc_fid,/remove
-
+  
   bad=50 ;; always discard the first 50 scan lines of possible bad rotary
   ;; encoders due to intertial of the rotation or lack of lock-in of rotary
-  ;; encoder. 
+  ;; encoder.
   bad_end=10 ;; always discard the last 10 scan lines just in case of any funky
-  ;; error. 
+  ;; error.
   ;; set the mask for overlapping, 0: pixels to be discarded.
-  ;; here we are using ENCODER values, NOT actual angular values. 
+  ;; here we are using ENCODER values, NOT actual angular values.
   ;; by default, i.e. no overlap is given, do NOT remove overlap and leave the
   ;; scan as it is collected
   ;; Now calcualte the azimuth angle of each scan line
@@ -168,7 +168,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     tmpazim[i] = median(tmp)
   endfor
   ;; if the decreasing rotary encoder passes through 0 and 524288 (2*pi), add a
-  ;; round of 524288 (2*pi) so that later angular calculation is easier. 
+  ;; round of 524288 (2*pi) so that later angular calculation is easier.
   tmpdiff = tmpazim[0:nscans-2] - tmpazim[1:nscans-1]
   tmppos = where(tmpdiff lt -524288.0d0/2.0, tmpcount)
   tmpazim = tmpazim[0:tmppos[0]] + 524288.0d0
@@ -177,7 +177,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   scan_overlap = (az_range - 524288.0d0/2.0) / 524288.0d0 * 360.0
   if scan_overlap lt 0 then begin
     scan_overlap = 0.0
-  endif 
+  endif
   if n_elements(overlap) ne 0 or arg_present(overlap) then begin
     ;; overlap is given
     ;; set mask according to azimuth angles
@@ -185,7 +185,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     ;; of a scan could be of no change possibly due to the inertial of the
     ;;instrument rotation or lack of lock-in of rotary encoder. Thus here we
     ;;retain the last 180 degrees of scan lines and discard the first few scan
-    ;;lines with possibly bad azimuth values. 
+    ;;lines with possibly bad azimuth values.
     firstazim = tmpazim[nscans-1-bad_end] + 524288.0d0/2.0 + float(overlap)/360.0*524288.0d0
     tmppos = where(tmpazim gt firstazim, tmpcount)
     if tmpcount gt 0 then begin
@@ -193,10 +193,10 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
         sel = tmppos[tmpcount-1]
       endif else begin
         sel = bad
-      endelse 
+      endelse
     endif else begin
       sel = bad
-    endelse 
+    endelse
     Mask_all[*, 0:sel] = 0
     print, 'first scan line in the projection = ', sel+1
     Mask_all[*, (nscans-bad_end):(nscans-1)] = 0
@@ -205,7 +205,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     print, 'Scan''s own overlap azimuth = ', scan_overlap
     if overlap gt scan_overlap then begin
       overlap = scan_overlap
-    endif 
+    endif
   endif else begin
     ;; no overlap is given
     ;; do not change the mask and use all valid pixels in the projection
@@ -216,8 +216,8 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     print, 'last scan line in the projection = ', nscans-bad_end-1
     print, 'Project the whole scan, overlap azimuth = ', scan_overlap
     overlap = scan_overlap
-  endelse 
-
+  endelse
+  
   ;; sel=0
   ;; bad=50
   ;; bad_end=10
@@ -228,12 +228,12 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;; pos=where(Rot_med gt 0,npos)
   ;; if (npos gt 0) then Rot_med=reform(Rot_med[pos])
   ;; numval=n_elements(Rot_med)
-
+  
   ;; Rot_med_compl=Rot_med-RotEnc_Max/2.0d0
   ;; posc=where(Rot_med_compl lt 0.0,nposc)
   ;; if (nposc gt 0) then Rot_med_compl[posc]=Rot_med_compl[posc]+RotEnc_Max
   ;; posc=0b
-
+  
   ;; valend=Rot_med[numval-bad_end-1]
   ;; posc=where(Rot_med_compl lt valend,nposc)
   ;; if (nposc gt 0) then begin
@@ -245,18 +245,18 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;; pos=0b
   ;; print,'final sel=',sel
   ;; ;===========================================
-
+  
   ;set up a structure and push it onto the heap
   sav={ $
-       Nshots:nshots,$
-       Nscans:nscans,$
-       ShotZen:ShotZen,$
-       ShotAzim:ShotAzim $
-       }
-
+    Nshots:nshots,$
+    Nscans:nscans,$
+    ShotZen:ShotZen,$
+    ShotAzim:ShotAzim $
+    }
+    
   ;now put the data on the heap with a pointer
   p_stat=ptr_new(sav,/no_copy)
-
+  
   status = DWEL_set_theta_phi_nsf(p_stat,zen_tweak)
   
   ;put the results into the local arrays
@@ -300,47 +300,47 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   if (~srate_set) then print,'Sampling rate NOT read from headers!!!'
   print,'sampling rate=',srate
-
+  
   ;Get the beam divergence
   buf=''
-   match = -1
-   for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-     if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Beam Divergence*')) then match=i
-   endfor
-   if (match ge 0) then begin
-  ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
-     sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
-     if (n_elements(sf) gt 1) then begin
-       buf = strtrim(strcompress(sf[1]),2)
-     endif else begin
-       buf = ''
-     endelse
-   endif else begin
-     buf = ''
-   endelse
-   l=strpos(buf,'mrad')
-   if (l gt 0) then buf=strtrim(strmid(buf,0,l-1),2) else buf=''
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Beam Divergence*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
+    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
+    if (n_elements(sf) gt 1) then begin
+      buf = strtrim(strcompress(sf[1]),2)
+    endif else begin
+      buf = ''
+    endelse
+  endif else begin
+    buf = ''
+  endelse
+  l=strpos(buf,'mrad')
+  if (l gt 0) then buf=strtrim(strmid(buf,0,l-1),2) else buf=''
   ; print,'buf=',buf
-   val=float(buf)
-   beam_div=val[0]
+  val=float(buf)
+  beam_div=val[0]
   
   ;Get the scan_step
   buf=''
-   match = -1
-   for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-     if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Scans per Complete Rotation*')) then match=i
-   endfor
-   if (match ge 0) then begin
-  ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
-     sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
-     if (n_elements(sf) gt 1) then begin
-       buf = strtrim(strcompress(sf[1]),2)
-     endif else begin
-       buf = ''
-     endelse
-   endif else begin
-     buf = ''
-   endelse
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Scans per Complete Rotation*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
+    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
+    if (n_elements(sf) gt 1) then begin
+      buf = strtrim(strcompress(sf[1]),2)
+    endif else begin
+      buf = ''
+    endelse
+  endif else begin
+    buf = ''
+  endelse
   val=float(buf)
   if (val[0] gt 0.0) then scan_step=2000.0*!pi/val[0] else scan_step=0.0 ; unit of scan step: mrad
   sampling_ratio=beam_div/scan_step
@@ -380,7 +380,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   Tot_Count=0L
   gotind=0b
   a_ref=[nshots,nscans]
-        
+  
   ;Now set up the pointer array to the cell data and all is ready
   
   p_list=make_array(nl_out,/ptr)
@@ -402,7 +402,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     y_min=y-h2
     y_max=y+h2
     pos_y=where(((y_proj ge y_min) and (y_proj le y_max) and Mask_all),count_y)
-
+    
     if (count_y gt 0) then begin
       for j=0,ns_out-1 do begin
         x=float(ns_out-1-j)*h
@@ -424,10 +424,10 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
           
           if (gotind) then begin
             pos_ind=[[pos_ind],[temp]] ; pos_ind is n*3 array, n is the number
-                                ; of shots in the line i of the projection,
-                                ; first and second columns are the pixel
-                                ; location in the original data cube, the third
-                                ; column is the column j of the projection. 
+          ; of shots in the line i of the projection,
+          ; first and second columns are the pixel
+          ; location in the original data cube, the third
+          ; column is the column j of the projection.
           endif else begin
             pos_ind=[[temp]]
             gotind=1b
@@ -459,7 +459,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
         theta[j,i]=round(angle_scale*th)
         phi[j,i]=round(angle_scale*ph)
       endfor
-      ;print,'Hit an empty line at i=',i
+    ;print,'Hit an empty line at i=',i
     endelse
     p_list[i]=ptr_new(pos_ind,/no_copy)
     pos_ind=0b
@@ -469,10 +469,10 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   a_zen=strtrim(string(A_theta,format='(f12.4)'),2)
   a_azm=strtrim(string(A_phi,format='(f12.4)'),2)
-
+  
   DWEL_Andrieu_zenith=a_zen
   DWEL_Andrieu_azimuth=a_azm
-
+  
   a_zen=0b
   a_azm=0b
   A_theta=0b
@@ -499,19 +499,19 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     'Output scale='+strtrim(string(scaler,format='(f10.2)'),2), $
     'Angular scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
     'Overlap azimuth='+strtrim(string(overlap, format='(f10.3)'), 2) $
-  ]
+    ]
   DWEL_Anc2AT_info=strtrim(DWEL_Anc2AT_info,2)
   
   ;all ready to go ... so get output file name[s]
   output_envi:
-    
+  
   print,'pre-processing done - projecting the image!'
-    
+  
   ;set up the arrays for data and output
   data = make_array(nshots,1,/double)
   temp = make_array(nshots,1,/double)
   maxwf = make_array(ns_out, nl_out, /double)
-
+  
   num_avg=make_array(ns_out,nl_out,/long)
   
   ;do the processing over the output tiles
@@ -536,7 +536,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
         endif
         ;do something!
         temp[pos_ind[2,point],*]=temp[pos_ind[2,point],*]+ $
-        data[pos_ind[0,point],*]
+          data[pos_ind[0,point],*]
         num_avg[pos_ind[2,point],k]=num_avg[pos_ind[2,point],k]+1L
         point=point+1L
       endwhile
@@ -572,7 +572,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   print,'amin,amax,amean=',amin,amax,amean
   
   pos=0b
-    
+  
   ;now write out the extra information image
   ;; set up the file name of the extra information image
   outextra=DWEL_AT_File
@@ -589,29 +589,29 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   writeu,ofile,long(theta)
   writeu,ofile,long(phi)
   writeu,ofile,long(mask)
-;;  writeu,ofile,round(maxwf_out)
+  ;;  writeu,ofile,round(maxwf_out)
   writeu,ofile,round(maxwf)
   free_lun, ofile,/force
   
   descrip='Numbers and info for '+strtrim(DWEL_Anc_File,2)
   bnames=['Number Averaged','Zenith','Azimuth','Mask','Max']
   envi_setup_head,fname=outextra,ns=ns_out,nl=nl_out,nb=5,$
-  xstart=0,ystart=0,$
-  data_type=3, interleave=0, bnames=bnames, $
-  descrip=descrip, /write
-  
+    xstart=0,ystart=0,$
+    data_type=3, interleave=0, bnames=bnames, $
+    descrip=descrip, /write
+    
   envi_open_file,outextra,r_fid=anc_fid,/no_interactive_query,/no_realize
   
   ;write out the previous header records
   status=DWEL_put_headers(anc_fid,DWEL_headers)
   
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Anc2AT_info', $
-      value=DWEL_Anc2AT_info
-  
+    value=DWEL_Anc2AT_info
+    
   envi_write_file_header, anc_fid
   envi_file_mng,id=anc_fid,/remove
   anc_fid=0b
-
+  
   print,'Completed writing projected image - now for summary data'
   
   print,'Output File: '+strtrim(DWEL_AT_File,2)
@@ -623,7 +623,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   print,' '
   print,'*************************************'
   print,' '
-
+  
   cleanup:
   
   num_val=0b

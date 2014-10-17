@@ -112,7 +112,7 @@ pro DWEL_Baseline_Sat_Fix_Cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   ;; the specific location of the casing for this distance measurement depends
   ;; on the given zenith range of casing used for baseline fix and laser power
   ;; drop-off correction. Now we are using the circular Lambertian target near
-  ;; nadir position. 
+  ;; nadir position.
   casing2Tzero = 0.065 ; unit=metres, needs update for NSF DWEL
   ;the "FWHM" of outgoing pulse (now just a number used and calibrated)
   outgoing_fwhm = 5.1
@@ -354,7 +354,7 @@ pro DWEL_Baseline_Sat_Fix_Cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   azimuths=(*p_stat).ShotAzim
   ptr_free, p_stat
   
-  ;------------------------------------------------------------------------------  
+  ;------------------------------------------------------------------------------
   output:
   
   ;check if output file is open in envi

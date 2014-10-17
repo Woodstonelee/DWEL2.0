@@ -11,21 +11,21 @@ end
 ; Max_Zenith_Angle: in unit of degree
 ; output_resolution: in unit of mrad
 pro dwel_cube2at_oz, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, output_resolution, zen_tweak, err
-  
+
   ;; debug
   print, 'entering dwel_cube2at'
-
+  
   compile_opt idl2
-;  envi, /restore_base_save_files
-;  envi_batch_init, /no_status_window
-
-inlun=100
-ofile=30
-p_stat=0
-p_list=0
-err=0
-err_flag=0b
-
+  ;  envi, /restore_base_save_files
+  ;  envi_batch_init, /no_status_window
+  
+  inlun=100
+  ofile=30
+  p_stat=0
+  p_list=0
+  err=0
+  err_flag=0b
+  
   ;;;;;;;;;;;;;;;;;;;;;;;;
   ; some default paramters
   def_ifov_x=4.0
@@ -39,12 +39,12 @@ err_flag=0b
   scale=1.0d0
   r2mr=1000.0
   Proj_name=['Hemispherical','Andrieu Normal','Andrieu Transpose']
-
-;set speed of light metres per nsec /2
+  
+  ;set speed of light metres per nsec /2
   c=0.299792458
   c2=c/2.0
   ;;;;;;;;;;;;;;;;;;;;;;;;
-
+  
   envi_open_file, DWEL_Cube_File,r_fid=fid,/no_interactive_query,/no_realize
   if(fid eq -1) then begin
     print, 'Processing stopped! Failed to open the input data cube file: ' + DWEL_Cube_File
@@ -58,7 +58,7 @@ err_flag=0b
     byte_swap=order, data_type=type, interleave=ftype, $
     bnames=band_name, dims=dims, file_type=f_type, $
     xstart=xstart, ystart=ystart,wl=wl
-  
+    
   result=envi_file_type(f_type)
   
   print,'input file type = ',result
@@ -76,7 +76,7 @@ err_flag=0b
   lines=nl
   bands=nb
   
-;get number of bytes in the input data
+  ;get number of bytes in the input data
   nbytes=dt2nb(type)
   
   band_pos=indgen(nb)
@@ -88,25 +88,25 @@ err_flag=0b
   ;set the type of file
   ft_nam='Unknown'
   case ftype of
-  0: ft_nam='BSQ'
-  1: ft_nam='BIL'
-  2: ft_nam='BIP'
+    0: ft_nam='BSQ'
+    1: ft_nam='BIL'
+    2: ft_nam='BIP'
   endcase
   
   ;set the data type
   dt_nam='Unknown'
   case type of
-  1: dt_nam='Byte'
-  2: dt_nam='Int'
-  3: dt_nam='Long Int'
-  4: dt_nam='Floating Point'
-  5: dt_nam='DP Floating Point'
-  6: dt_nam='Complex'
-  9: dt_nam='DP Complex'
-  12: dt_nam='Unsigned Int'
-  13: dt_nam='Unsigned Long Int'
-  14: dt_nam='64-bit Int'
-  15: dt_nam='64-bit Long Int'
+    1: dt_nam='Byte'
+    2: dt_nam='Int'
+    3: dt_nam='Long Int'
+    4: dt_nam='Floating Point'
+    5: dt_nam='DP Floating Point'
+    6: dt_nam='Complex'
+    9: dt_nam='DP Complex'
+    12: dt_nam='Unsigned Int'
+    13: dt_nam='Unsigned Long Int'
+    14: dt_nam='64-bit Int'
+    15: dt_nam='64-bit Long Int'
   endcase
   
   ;get path and image name as separate strings
@@ -121,9 +121,9 @@ err_flag=0b
   ;now get the DWEL headers that are present
   ;set up a base structure for the DWEL headers
   DWEL_headers={ $
-       f_base:f_base $
-       }
-  
+    f_base:f_base $
+    }
+    
   ;find all of the DWEL headers in the hdr file as defined by FID
   status=DWEL_get_headers(fid,DWEL_headers)
   
@@ -176,71 +176,71 @@ err_flag=0b
   
   ;Get date and time of the acquisition
   DWEL_date_time=''
-   match = -1
-   for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-     if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Data End Time*') or $
-     strmatch(DWEL_headers.DWEL_scan_info[i],'*DWEL Date Time*')) then match=i
-   endfor
-   if (match ge 0) then begin
-     sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
-     DWEL_date_time = strtrim(strcompress(sf[1]),2)
-   endif else begin
-     DWEL_date_time = ''
-   endelse
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Data End Time*') or $
+      strmatch(DWEL_headers.DWEL_scan_info[i],'*DWEL Date Time*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
+    DWEL_date_time = strtrim(strcompress(sf[1]),2)
+  endif else begin
+    DWEL_date_time = ''
+  endelse
   
   ;Get the site description
   DWEL_description_record=''
-   match = -1
-   for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-     if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Scan Description*')) then match=i
-   endfor
-   if (match ge 0) then begin
-     sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
-     if (n_elements(sf) gt 1) then begin
-       DWEL_description_record = strtrim(sf[1],2)
-     endif else begin
-       DWEL_description_record = ''
-     endelse
-   endif else begin
-     DWEL_description_record = ''
-   endelse
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Scan Description*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
+    if (n_elements(sf) gt 1) then begin
+      DWEL_description_record = strtrim(sf[1],2)
+    endif else begin
+      DWEL_description_record = ''
+    endelse
+  endif else begin
+    DWEL_description_record = ''
+  endelse
   
   print,''
   print,'DWEL run Date & Time='+strtrim(DWEL_date_time,2)
   print,'DWEL run Description='+strtrim(DWEL_description_record,2)
   
-if (not DWEL_headers.base_present) then begin
- info = DWEL_headers.DWEL_scan_info
-;set the default sampling rate
-  match = -1
-  for i=0,n_elements(info)-1 do if (strmatch(info[i],'*Sampling Rate*')) then match=i
-  if (match ge 0) then begin
-    text=strtrim(info[match],2)
-    print,'text=',text
-    k=strpos(text,'=')
-    l=strpos(text,'smp/ns')
-    print,'extract=',strtrim(strmid(text,k+1,l-k-1),2)
-;  reads,strtrim(strmid(text,k+1,l-k-1),2),var2
-    var2=float(strtrim(strmid(text,k+1,l-k-1),2))
-    if (var2 gt 0.0) then begin
-      srate=var2
-      srate_set=1
+  if (not DWEL_headers.base_present) then begin
+    info = DWEL_headers.DWEL_scan_info
+    ;set the default sampling rate
+    match = -1
+    for i=0,n_elements(info)-1 do if (strmatch(info[i],'*Sampling Rate*')) then match=i
+    if (match ge 0) then begin
+      text=strtrim(info[match],2)
+      print,'text=',text
+      k=strpos(text,'=')
+      l=strpos(text,'smp/ns')
+      print,'extract=',strtrim(strmid(text,k+1,l-k-1),2)
+      ;  reads,strtrim(strmid(text,k+1,l-k-1),2),var2
+      var2=float(strtrim(strmid(text,k+1,l-k-1),2))
+      if (var2 gt 0.0) then begin
+        srate=var2
+        srate_set=1
+      endif else begin
+        srate=2.0
+        srate_set=0
+      endelse
     endif else begin
       srate=2.0
-      srate_set=0
+      srate_set = 0b
     endelse
-  endif else begin
-    srate=2.0
-    srate_set = 0b
-  endelse
-  if (match ge 0) then print,'info match for sampling rate= ',strtrim(info[match],2)
-  if (~srate_set) then print,'sampling rate not set'
-  print,'sampling rate=',srate
-  tdif=c2/srate
-  print,'time step='+strtrim(string(tdif),2),' metres'
-  wl=findgen(bands)*tdif
-endif
-
+    if (match ge 0) then print,'info match for sampling rate= ',strtrim(info[match],2)
+    if (~srate_set) then print,'sampling rate not set'
+    print,'sampling rate=',srate
+    tdif=c2/srate
+    print,'time step='+strtrim(string(tdif),2),' metres'
+    wl=findgen(bands)*tdif
+  endif
+  
   if(not file_test(DWEL_Anc_File)) then begin
     print,'Processing stopped! Ancillary file not present or not correct!'
     envi_file_mng,id=fid,/remove
@@ -274,9 +274,9 @@ endif
   ;now get the DWEL headers that are present for the ancillary file
   ;set up a base structure for the  headers
   DWEL_anc_headers={ $
-       f_base:DWEL_Anc_File $
-       }
-  
+    f_base:DWEL_Anc_File $
+    }
+    
   ;find all of the DWEL headers in the hdr file as defined by FID
   status=DWEL_get_headers(anc_fid,DWEL_anc_headers)
   
@@ -301,7 +301,7 @@ endif
   endif
   
   print,'Input information from input files complete'
-
+  
   ;set output band number
   nb_out=n_elements(where(band_pos gt -1))
   
@@ -318,47 +318,47 @@ endif
   
   envi_file_mng,id=anc_fid,/remove
   envi_file_mng,id=fid,/remove
-
-;now get start of data to ensure wrap
-sel=0
-bad=50
-bad_end=10
-RotEnc_max=524288.0d0
-Rot_med=double(median(ShotAzim,dimension=1))
-;
-Rot_med=reform(Rot_med[bad:Nscans-1])
-pos=where(Rot_med gt 0,npos)
-if (npos gt 0) then Rot_med=reform(Rot_med[pos])
-numval=n_elements(Rot_med)
-
-Rot_med_compl=Rot_med-RotEnc_Max/2.0d0
-posc=where(Rot_med_compl lt 0.0,nposc)
-if (nposc gt 0) then Rot_med_compl[posc]=Rot_med_compl[posc]+RotEnc_Max
-posc=0b
-
-valend=Rot_med[numval-bad_end-1]
-posc=where(Rot_med_compl lt valend,nposc)
-if (nposc gt 0) then begin
-  sel=max([bad,pos[posc[0]]+bad])
-endif else begin
-  sel=bad
-endelse
-posc=0b
-pos=0b
-print,'final sel=',sel
-
-;===========================================
+  
+  ;now get start of data to ensure wrap
+  sel=0
+  bad=50
+  bad_end=10
+  RotEnc_max=524288.0d0
+  Rot_med=double(median(ShotAzim,dimension=1))
+  ;
+  Rot_med=reform(Rot_med[bad:Nscans-1])
+  pos=where(Rot_med gt 0,npos)
+  if (npos gt 0) then Rot_med=reform(Rot_med[pos])
+  numval=n_elements(Rot_med)
+  
+  Rot_med_compl=Rot_med-RotEnc_Max/2.0d0
+  posc=where(Rot_med_compl lt 0.0,nposc)
+  if (nposc gt 0) then Rot_med_compl[posc]=Rot_med_compl[posc]+RotEnc_Max
+  posc=0b
+  
+  valend=Rot_med[numval-bad_end-1]
+  posc=where(Rot_med_compl lt valend,nposc)
+  if (nposc gt 0) then begin
+    sel=max([bad,pos[posc[0]]+bad])
+  endif else begin
+    sel=bad
+  endelse
+  posc=0b
+  pos=0b
+  print,'final sel=',sel
+  
+  ;===========================================
   ;set up a structure and push it onto the heap
   sav={ $
-       Nshots:Nshots,$
-       Nscans:Nscans,$
-       ShotZen:ShotZen,$
-       ShotAzim:ShotAzim $
-       }
-  
+    Nshots:Nshots,$
+    Nscans:Nscans,$
+    ShotZen:ShotZen,$
+    ShotAzim:ShotAzim $
+    }
+    
   ;now put the data on the heap with a pointer
   p_stat=ptr_new(sav,/no_copy)
-
+  
   status = dwel_set_theta_phi_oz(p_stat,zen_tweak)
   
   ;put the results into the local arrays
@@ -376,7 +376,7 @@ print,'final sel=',sel
   ;now introduce the new mask to ensure minimum wrap
   mask_all[*,0:sel]=0
   mask_all[*,(nscans-bad_end):(nscans-1)]=0
-
+  
   srate_set=0b
   ;set the default sampling rate
   match = -1
@@ -403,46 +403,46 @@ print,'final sel=',sel
   if (~srate_set) then print,'Sampling rate NOT read from headers!!!'
   print,'Sampling rate='+strtrim(string(srate),2)
   
-;Get the beam divergence
+  ;Get the beam divergence
   buf=''
-   match = -1
-   for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-     if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Beam Divergence*')) then match=i
-   endfor
-   if (match ge 0) then begin
-  ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
-     sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
-     if (n_elements(sf) gt 1) then begin
-       buf = strtrim(strcompress(sf[1]),2)
-     endif else begin
-       buf = ''
-     endelse
-   endif else begin
-     buf = ''
-   endelse
-   l=strpos(buf,'mrad')
-   if (l gt 0) then buf=strtrim(strmid(buf,0,l-1),2) else buf=''
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Beam Divergence*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
+    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
+    if (n_elements(sf) gt 1) then begin
+      buf = strtrim(strcompress(sf[1]),2)
+    endif else begin
+      buf = ''
+    endelse
+  endif else begin
+    buf = ''
+  endelse
+  l=strpos(buf,'mrad')
+  if (l gt 0) then buf=strtrim(strmid(buf,0,l-1),2) else buf=''
   ; print,'buf=',buf
-   val=float(buf)
-   beam_div=val[0]
+  val=float(buf)
+  beam_div=val[0]
   
   ;Get the scan_step
   buf=''
-   match = -1
-   for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-     if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Scans per Complete Rotation*')) then match=i
-   endfor
-   if (match ge 0) then begin
-  ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
-     sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
-     if (n_elements(sf) gt 1) then begin
-       buf = strtrim(strcompress(sf[1]),2)
-     endif else begin
-       buf = ''
-     endelse
-   endif else begin
-     buf = ''
-   endelse
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Scans per Complete Rotation*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
+    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
+    if (n_elements(sf) gt 1) then begin
+      buf = strtrim(strcompress(sf[1]),2)
+    endif else begin
+      buf = ''
+    endelse
+  endif else begin
+    buf = ''
+  endelse
   val=float(buf)
   if (val[0] gt 0.0) then scan_step=2000.0*!pi/val[0] else scan_step=0.0 ; unit of scan step: mrad
   sampling_ratio=beam_div/scan_step
@@ -481,7 +481,7 @@ print,'final sel=',sel
   Tot_Count=0L
   gotind=0b
   a_ref=[Nshots,Nscans]
-        
+  
   ;Now set up the pointer array to the cell data and all is ready
   
   p_list=make_array(nl_out,/ptr)
@@ -493,7 +493,7 @@ print,'final sel=',sel
   A_theta=make_array(ns_out,/double)
   A_phi=make_array(nl_out,/double)
   pos_ind=0b
-
+  
   ;now loop over the cells and set up pointers to the original image cells
   ;involved in the output spatial cells
   for i=0, nl_out-1 do begin
@@ -501,7 +501,7 @@ print,'final sel=',sel
     y_min=y-h2
     y_max=y+h2
     pos_y=where(((y_proj ge y_min) and (y_proj le y_max) and Mask_all),count_y)
-
+    
     if (count_y gt 0) then begin
       for j=0,ns_out-1 do begin
         x=float(j)*h
@@ -522,7 +522,7 @@ print,'final sel=',sel
           endelse
           
           if (gotind) then begin
-            pos_ind=[[pos_ind],[temp]] ; pos_ind is n*3 array, n is the number of shots in the line i of the projection, first and second columns are the pixel location in the original data cube, the third line is the column j of the projection. 
+            pos_ind=[[pos_ind],[temp]] ; pos_ind is n*3 array, n is the number of shots in the line i of the projection, first and second columns are the pixel location in the original data cube, the third line is the column j of the projection.
           endif else begin
             pos_ind=[[temp]]
             gotind=1b
@@ -554,7 +554,7 @@ print,'final sel=',sel
         theta[j,i]=round(100.0*th)
         phi[j,i]=round(100.0*ph)
       endfor
-      ;print,'Hit an empty line at i=',i
+    ;print,'Hit an empty line at i=',i
     endelse
     p_list[i]=ptr_new(pos_ind,/no_copy)
     pos_ind=0b
@@ -564,10 +564,10 @@ print,'final sel=',sel
   
   a_zen=strtrim(string(A_theta,format='(f12.4)'),2)
   a_azm=strtrim(string(A_phi,format='(f12.4)'),2)
-
+  
   DWEL_Andrieu_zenith=strtrim('zen=('+strcompress(strjoin(a_zen,',',/single),/remove_all)+')',2)
   DWEL_Andrieu_azimuth=strtrim('azm=('+strcompress(strjoin(a_azm,',',/single),/remove_all)+')',2)
-
+  
   a_zen=0b
   a_azm=0b
   A_theta=0b
@@ -580,44 +580,44 @@ print,'final sel=',sel
   endelse
   DWEL_Projection_info=strarr(12)
   DWEL_Projection_info=[ $
-  'Program='+'DWEL_Cube2AT_oz Projection Routine',$
-  'Processing Date Time='+strtrim(systime(),2),$
-  'Projection_type='+ptype,$
-  'Projection_name='+pname,$
-  'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
-  'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
-  'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
-  'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
-  'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
-  'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
-  'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
-  'Output scale='+strtrim(string(scaler,format='(f10.2)'),2) $
-  ]
+    'Program='+'DWEL_Cube2AT_oz Projection Routine',$
+    'Processing Date Time='+strtrim(systime(),2),$
+    'Projection_type='+ptype,$
+    'Projection_name='+pname,$
+    'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
+    'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
+    'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
+    'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
+    'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
+    'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
+    'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
+    'Output scale='+strtrim(string(scaler,format='(f10.2)'),2) $
+    ]
   DWEL_Projection_info=strtrim(DWEL_Projection_info,2)
   
   ;all ready to go ... so get output file name[s]
   output_envi:
-
-text_err=0
-;open input file
-openr,inlun,DWEL_Cube_File,/get_lun,error=text_err
-if (text_err ne 0) then begin
-  print,'Error opening input file '+strtrim(DWEL_Cube_File,2)
-  if (ptr_valid(p_list[0])) then ptr_free,p_list
-  err=9
-  err_flag=1b
-  goto,cleanup
-endif
-;Open output file
-text_err=0
-openw, ofile, DWEL_AT_File,/get_lun,error=text_err
-if (text_err ne 0) then begin
-  print,'Error opening output file '+strtrim(DWEL_AT_File,2)
-  if (ptr_valid(p_list[0])) then ptr_free,p_list
-  err=10
-  err_flag=1b
-  goto, cleanup
-endif
+  
+  text_err=0
+  ;open input file
+  openr,inlun,DWEL_Cube_File,/get_lun,error=text_err
+  if (text_err ne 0) then begin
+    print,'Error opening input file '+strtrim(DWEL_Cube_File,2)
+    if (ptr_valid(p_list[0])) then ptr_free,p_list
+    err=9
+    err_flag=1b
+    goto,cleanup
+  endif
+  ;Open output file
+  text_err=0
+  openw, ofile, DWEL_AT_File,/get_lun,error=text_err
+  if (text_err ne 0) then begin
+    print,'Error opening output file '+strtrim(DWEL_AT_File,2)
+    if (ptr_valid(p_list[0])) then ptr_free,p_list
+    err=10
+    err_flag=1b
+    goto, cleanup
+  endif
   
   print,'pre-processing done - projecting the image!'
   
@@ -625,7 +625,7 @@ endif
   ft_out=1
   ft_str=['BSQ','BIL','BIP']
   
-;set the output data type
+  ;set the output data type
   if (type lt 4 or type gt 9) then begin
     out_type=2
   endif else begin
@@ -656,11 +656,11 @@ endif
   endif
   pos_nz=0b
   num_avg=make_array(ns_out,nl_out,/long)
-
-;set the pointers
-bufrs=long64(nbytes)*long64(nb)*long64(ns)
-pointsz=long64(0)
-
+  
+  ;set the pointers
+  bufrs=long64(nbytes)*long64(nb)*long64(ns)
+  pointsz=long64(0)
+  
   ;do the processing over the output tiles
   ;BIL Tile
   
@@ -668,7 +668,7 @@ pointsz=long64(0)
     current=-1
     ;count=0L
     temp=make_array(ns_out,nb_out,/double)
-  ;help,*(p_list[k])
+    ;help,*(p_list[k])
     pos_nz=where(num_val[*,k] gt 0,n_pos)
     if (n_pos gt 0) then begin
       pos_ind=*(p_list[k])
@@ -678,17 +678,17 @@ pointsz=long64(0)
         lin=pos_ind[1,point]
         if (lin ne current) then begin
           data=0s
-;          data=double(envi_get_tile(tile_id,lin))
-;          data=double(envi_get_slice(fid=fid, line=lin, /bil))
-           pointsz=long64(lin)*long64(bufrs)
-           data=read_binary(inlun,data_start=pointsz,data_dims=[ns,nb],data_type=type)
-           data=double(data)
+          ;          data=double(envi_get_tile(tile_id,lin))
+          ;          data=double(envi_get_slice(fid=fid, line=lin, /bil))
+          pointsz=long64(lin)*long64(bufrs)
+          data=read_binary(inlun,data_start=pointsz,data_dims=[ns,nb],data_type=type)
+          data=double(data)
           ;count=count+1L
           current=lin
         endif
-;do something!
+        ;do something!
         temp[pos_ind[2,point],*]=temp[pos_ind[2,point],*]+ $
-        data[pos_ind[0,point],*]
+          data[pos_ind[0,point],*]
         num_avg[pos_ind[2,point],k]=num_avg[pos_ind[2,point],k]+1L
         point=point+1L
       endwhile
@@ -698,8 +698,8 @@ pointsz=long64(0)
     pos_nz=0b
     data=0b
     writeu,ofile,fix(round(scaler*temp))
-  
-;now get the statistics of the image for the extra info file
+    
+    ;now get the statistics of the image for the extra info file
     accum[*,k]=total(abs(temp),2,/double)/float(nb_out)
     accum_abs[*,k]=total(abs(temp),2,/double)/float(nb_out)
     accum_r[*,k]=transpose(abs(temp))##sc_r
@@ -710,11 +710,11 @@ pointsz=long64(0)
     temp=0b
   endfor
   
-;  envi_tile_done, tile_id
+  ;  envi_tile_done, tile_id
   free_lun,inlun,/force
   free_lun,ofile,/force
   ptr_free, p_list
-;  envi_file_mng,id=fid,/remove
+  ;  envi_file_mng,id=fid,/remove
   data=0b
   temp=0b
   
@@ -723,10 +723,10 @@ pointsz=long64(0)
     print,'total counted in first loop=',total(num_val)
     print,'total counted in second loop=',total(num_avg)
   endif
-
-print,'Done projecting - now get info and clean up!'
-
-;  ;compute the stars
+  
+  print,'Done projecting - now get info and clean up!'
+  
+  ;  ;compute the stars
   star_r=make_array(ns_out,nl_out,/double)
   star_r2=make_array(ns_out,nl_out,/double)
   pos=where(abs(accum_abs) gt 1.0e-5,count)
@@ -742,7 +742,7 @@ print,'Done projecting - now get info and clean up!'
   
   sc_r=0b
   sc_r2=0b
-
+  
   image_statistics,maxwf,mask=mask,minimum=amin,maximum=amax,mean=amean,stddev=asdev
   scaler=4095.0/(amax-amin)
   maxwf=((round(scaler*(maxwf-amin))>0L)<4095L)
@@ -750,64 +750,64 @@ print,'Done projecting - now get info and clean up!'
   image_statistics,accum,mask=mask,minimum=amin,maximum=amax,mean=amean,stddev=asdev
   scaler=4095.0/(amax-amin)
   accum=((round(scaler*(accum-amin))>0L)<4095L)
-;
-;  print,'accum mean=',amean
+  ;
+  ;  print,'accum mean=',amean
   
   DWEL_projection_info=[DWEL_projection_info, $
-  'Stats_Format=(Min,Mean,Max,Stddev)', $
-  'accum_Stats=('+strtrim(string(amin),2)+',' $
-  +strtrim(string(amean),2)+',' $
-  +strtrim(string(amax),2)+',' $
-  +strtrim(string(asdev),2)+')' $
-  ]
-;  
+    'Stats_Format=(Min,Mean,Max,Stddev)', $
+    'accum_Stats=('+strtrim(string(amin),2)+',' $
+    +strtrim(string(amean),2)+',' $
+    +strtrim(string(amax),2)+',' $
+    +strtrim(string(asdev),2)+')' $
+    ]
+  ;
   image_statistics,accum_r,mask=mask,minimum=amin,maximum=amax,mean=amean,stddev=asdev
   scaler=4095.0/(amax-amin)
   accum_r=((round(scaler*(accum_r-amin))>0L)<4095L)
-;  
+  ;
   DWEL_projection_info=[DWEL_projection_info, $
-  'accum_r_Stats=('+strtrim(string(amin),2)+',' $
-  +strtrim(string(amean),2)+',' $
-  +strtrim(string(amax),2)+',' $
-  +strtrim(string(asdev),2)+')' $
-  ]
-;  
+    'accum_r_Stats=('+strtrim(string(amin),2)+',' $
+    +strtrim(string(amean),2)+',' $
+    +strtrim(string(amax),2)+',' $
+    +strtrim(string(asdev),2)+')' $
+    ]
+  ;
   image_statistics,accum_r2,mask=mask,minimum=amin,maximum=amax,mean=amean,stddev=asdev
   scaler=4095.0/(amax-amin)
   accum_r2=((round(scaler*(accum_r2-amin))>0L)<4095L)
-;  
+  ;
   DWEL_projection_info=[DWEL_projection_info, $
-  'accum_r2_Stats=('+strtrim(string(amin),2)+',' $
-  +strtrim(string(amean),2)+',' $
-  +strtrim(string(amax),2)+',' $
-  +strtrim(string(asdev),2)+')' $
-  ]
-;
-;  image_statistics,star_r,mask=mask,minimum=amin,maximum=amax,mean=amean,stddev=asdev
+    'accum_r2_Stats=('+strtrim(string(amin),2)+',' $
+    +strtrim(string(amean),2)+',' $
+    +strtrim(string(amax),2)+',' $
+    +strtrim(string(asdev),2)+')' $
+    ]
+  ;
+  ;  image_statistics,star_r,mask=mask,minimum=amin,maximum=amax,mean=amean,stddev=asdev
   scaler=4095.0/(amax-amin)
   star_r=((round(scaler*(star_r-amin))>0L)<4095L)
-;  
+  ;
   DWEL_projection_info=[DWEL_projection_info, $
-  'star_r_Stats=('+strtrim(string(amin),2)+',' $
-  +strtrim(string(amean),2)+',' $
-  +strtrim(string(amax),2)+',' $
-  +strtrim(string(asdev),2)+')' $
-  ]
-;  
+    'star_r_Stats=('+strtrim(string(amin),2)+',' $
+    +strtrim(string(amean),2)+',' $
+    +strtrim(string(amax),2)+',' $
+    +strtrim(string(asdev),2)+')' $
+    ]
+  ;
   image_statistics,star_r2,mask=mask,minimum=amin,maximum=amax,mean=amean,stddev=asdev
   scaler=4095.0/(amax-amin)
   star_r2=((round(scaler*(star_r2-amin))>0L)<4095L)
-;  
+  ;
   DWEL_projection_info=[DWEL_projection_info, $
-  'star_r2_Stats=('+strtrim(string(amin),2)+',' $
-  +strtrim(string(amean),2)+',' $
-  +strtrim(string(amax),2)+',' $
-  +strtrim(string(asdev),2)+')' $
-  ]
-  
-;set up the ENVI header for the output image and open in the
-;available files list
-  
+    'star_r2_Stats=('+strtrim(string(amin),2)+',' $
+    +strtrim(string(amean),2)+',' $
+    +strtrim(string(amax),2)+',' $
+    +strtrim(string(asdev),2)+')' $
+    ]
+    
+  ;set up the ENVI header for the output image and open in the
+  ;available files list
+    
   descrip=pname+' Projected BIL version of '+strtrim(DWEL_Cube_File,2)
   
   ;get output_file name without path
@@ -815,28 +815,28 @@ print,'Done projecting - now get info and clean up!'
   out_base=strtrim(strmid(DWEL_AT_File,last+1,strlen(DWEL_AT_File)-last-1),2)
   
   DWEL_projection_info=[DWEL_projection_info, $
-  'Input_File='+strtrim(f_base,2),$
-  'Output_projected_file='+strtrim(out_base,2)]
-  
+    'Input_File='+strtrim(f_base,2),$
+    'Output_projected_file='+strtrim(out_base,2)]
+    
   bnames=band_name[band_pos]+'_'+ptype+'_Projected'
   
   envi_setup_head,fname=DWEL_AT_File,ns=ns_out,nl=nl_out,nb=nb_out,$
-  xstart=0,ystart=0,$
-  data_type=2, interleave=1, $
-  descrip=descrip, wl=wl[band_pos], bnames=bnames,/write
-  
+    xstart=0,ystart=0,$
+    data_type=2, interleave=1, $
+    descrip=descrip, wl=wl[band_pos], bnames=bnames,/write
+    
   envi_open_file,DWEL_AT_File,r_fid=out_fid,/no_interactive_query,/no_realize
   
   ;write out the previous header records
   status=DWEL_put_headers(out_fid,DWEL_headers)
   
   envi_assign_header_value, fid=out_fid, keyword='DWEL_projection_info', $
-      value=DWEL_projection_info
+    value=DWEL_projection_info
   envi_assign_header_value, fid=out_fid, keyword='DWEL_Andrieu_zenith', $
-      value=DWEL_Andrieu_zenith
+    value=DWEL_Andrieu_zenith
   envi_assign_header_value, fid=out_fid, keyword='DWEL_Andrieu_azimuth', $
-      value=DWEL_Andrieu_azimuth
-  
+    value=DWEL_Andrieu_azimuth
+    
   envi_write_file_header, out_fid
   envi_file_mng,id=out_fid,/remove
   
@@ -863,7 +863,7 @@ print,'Done projecting - now get info and clean up!'
   writeu,ofile,long(phi)
   writeu,ofile,long(mask)
   writeu,ofile,long(maxwf)
-;  writeu,ofile,fix(round(meanwf))
+  ;  writeu,ofile,fix(round(meanwf))
   writeu,ofile,long(accum)
   writeu,ofile,long(accum_r)
   writeu,ofile,long(accum_r2)
@@ -873,28 +873,28 @@ print,'Done projecting - now get info and clean up!'
   
   descrip='Numbers and info for '+strtrim(DWEL_Cube_File,2)
   bnames=['Number Averaged','Zenith','Azimuth','Mask','Max','Mean','Mean_r','Mean_r2','Star_r','Star_RMS']
-;  bnames=['Number Averaged','Zenith','Azimuth','Mask','Mean','Max']
+  ;  bnames=['Number Averaged','Zenith','Azimuth','Mask','Mean','Max']
   envi_setup_head,fname=outextra,ns=ns_out,nl=nl_out,nb=10,$
-  xstart=0,ystart=0,$
-  data_type=3, interleave=0, bnames=bnames, $
-  descrip=descrip, /write
-  
+    xstart=0,ystart=0,$
+    data_type=3, interleave=0, bnames=bnames, $
+    descrip=descrip, /write
+    
   envi_open_file,outextra,r_fid=anc_fid,/no_interactive_query,/no_realize
   
   ;write out the previous header records
   status=DWEL_put_headers(anc_fid,DWEL_headers)
   
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_projection_info', $
-      value=DWEL_projection_info
+    value=DWEL_projection_info
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Andrieu_zenith', $
-      value=DWEL_Andrieu_zenith
+    value=DWEL_Andrieu_zenith
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Andrieu_azimuth', $
-      value=DWEL_Andrieu_azimuth
-  
+    value=DWEL_Andrieu_azimuth
+    
   envi_write_file_header, anc_fid
   envi_file_mng,id=anc_fid,/remove
   anc_fid=0b
-
+  
   print,'Completed writing projected image - now for summary data'
   
   print,'Output File: '+strtrim(DWEL_AT_File,2)
@@ -920,10 +920,10 @@ print,'Done projecting - now get info and clean up!'
   accum_r2=0b
   star_r=0b
   star_r2=0b
-
+  
   free_lun,inlun,/force
   free_lun,ofile,/force
-
+  
   result=ptr_valid(p_stat)
   if (result) then begin
     ptr_free,p_stat
@@ -937,6 +937,6 @@ print,'Done projecting - now get info and clean up!'
   p_list=0b
   
   if (err_flag) then print,'Returning from dwel_cube2at with error'
-;
+  ;
   return
 end
