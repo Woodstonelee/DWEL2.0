@@ -748,16 +748,16 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
   
   ;set up the DWEL header information for the base fixing
   ;
-  DWEL_itpulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, pulse_model
+  dwel_itpulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time, pulse_model
   
   model_fwhm=total(pulse_model)*time_step
   
   DWEL_filtered_fix_info=strarr(21)
   DWEL_filtered_fix_info=[$
-    'Program=dwel_filtered_fixbase_cmd_oz',$
+    'Program=dwel_filtered_fixbase_cmd_nsf',$
     'Descr=DWEL New Filtered Base Fix Settings',$
     'Processing Date Time='+strtrim(systime(),2),$
-    'Pulse='+'Oz_DWEL_Pulse_Model',$
+    'Pulse='+'NSF_DWEL_Pulse_Model',$
     'Comment=Tzero is the time at which the peak of the output iterated pulse occurs',$
     'Tzero='+strtrim(string(Tzero,format='(f10.3)'),2),$
     'srate='+strtrim(string(srate,format='(f10.2)'),2),$
