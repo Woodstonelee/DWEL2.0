@@ -727,7 +727,7 @@ pro DWEL_Baseline_Sat_Fix_Cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   ;set up the DWEL header information for the base fixing
   ;
   
-  DWEL_pulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, pulse_model
+  dwel_pulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time, pulse_model
   p_troughloc = i_val[3]
   p_scdpeakloc = i_val[4]
   
@@ -738,7 +738,7 @@ pro DWEL_Baseline_Sat_Fix_Cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     'Program=dwel_baseline_sat_fix_cmd_nsf',$
     'Descr=DWEL New Base Fix Settings with casing power',$
     'Processing Date Time='+strtrim(systime(),2),$
-    'Pulse='+'Oz_DWEL_Pulse_Model',$
+    'Pulse='+'NSF_DWEL_Pulse_Model',$
     'Comment=Tzero is the time at which the peak of the output pulse occurs',$
     'Tzero='+strtrim(string(Tzero,format='(f10.3)'),2),$
     'srate='+strtrim(string(srate,format='(f10.2)'),2),$
@@ -989,7 +989,7 @@ pro DWEL_Baseline_Sat_Fix_Cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   DWEL_sat_info = [$
     'Program=dwel_baseline_sat_fix_cmd_nsf',$
     'Title=Parameters for Saturation Fixing',$
-    'Model='+strtrim('Oz_DWEL_pulse_model_dual',2),$
+    'Model='+strtrim('NSF_DWEL_pulse_model_dual',2),$
     'Sat test value='+strtrim(sat_test,2), $
     'Saturated_(pixels)='+strtrim(totsat,2), $
     'Bad_(pixels)='+strtrim(alltotbad,2), $
