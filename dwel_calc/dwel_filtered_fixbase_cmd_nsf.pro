@@ -1,19 +1,54 @@
-;; baseline re-fix (and ancillary file update) for pre-filtered DWEL data
-;; Zhan Li, zhanli86@bu.edu
-;; Original with satfix Created in 2013 by Zhan Li
-;; Last modified: 20140603 by Zhan Li
 ;
-; This routine assumes input is filtered basefixed and satfixed file
-; Inancfile will usually be the ancillary file for the basefix and satfix image (which
-; is the one filtered in normal operation)
-; It re-assesses the casing information and also re-writes satfix ancillary information and headers
-; after this, the pulse has a new model of the Iterated Pulse and Tzero should be the position
-; of the peak of the outgoing iterated pulse!
-
-pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_info_stats, zen_tweak, err
+;+
+; NAME:
+;DWEL_FILTERED_FIXBASE_CMD_NSF
+;
+; PURPOSE:
+;Baseline re-fix (and ancillary file update) for pre-filtered DWEL data.
+;
+; CATEGORY:
+;DWEL waveform processing.
+;
+; CALLING SEQUENCE:
+;dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_info_stats, zen_tweak, err
+;
+; INPUTS:
+;FilteredFile = the file name of the DWEL cube file that had been base and sat
+;fixed and then filtered with dwel_general_filter (convolution with a pulse
+;model). 
+;Inancfile = ancillary file name of the DWEL cube.
+;OutUpdatedFile = 
+;get_info_stats = a boolean to ask if the program outputs statistics of the
+;casing waveforms. 
+;zen_tweak = 
+;err = 
+;
+; OUTPUTS:
+;
+; SIDE EFFECTS:
+;None.
+;
+; RESTRICTIONS:
+;None.
+;
+; PROCEDURE:
+;This routine assumes input is filtered basefixed and satfixed file. Inancfile
+;will usually be the ancillary file for the basefix and satfix image (which is
+;the one filtered in normal operation). It re-assesses the casing information
+;and also re-writes satfix ancillary information and headers after this, the
+;pulse has a new model of the Iterated Pulse and Tzero should be the position of
+;the peak of the outgoing iterated pulse!
+;
+; MODIFICATION HISTORY:
+;David Jupp, Sept 2014 - Created this routine. 
+;Zhan Li, Oct 2014 - Added documentation comments.
+;-
+pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_info_stats, zen_tweak, err
   ;; FilteredFile: the file name of the DWEL cube file that had been base and sat fixed and then filtered
   ;
   compile_opt idl2
+  envi, /restore_base_save_files
+  envi_batch_init, /no_status_window
   ;
   lun=99
   inlun=105
@@ -56,7 +91,8 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   c2=c/2.0
   
   ; Open DWEL cube file
-  envi_open_file, FilteredFile, r_fid=infile_fid,/no_realize,/no_interactive_query
+  envi_open_file, FilteredFile, r_fid=infile_fid, /no_realize, $
+    /no_interactive_query 
   
   if (infile_fid eq -1) then begin
     print,strtrim('Error opening input file',2)
@@ -90,15 +126,6 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   f_path=file_dirname(fname)
   
   ; Open Ancillary file
-  n_base=strlen(fname)
-  n_dot=strpos(fname,'.',/reverse_search)
-  ;  if((n_dot le 0) or (n_base-n_dot ne 4)) then begin
-  ;    anc_name=strtrim(fname,2)+'_ancillary'
-  ;  endif else begin
-  ;    Inancfile=strmid(fname,0,n_dot)+'_ancillary.img'
-  ;  endelse
-  inancfile=strtrim(inancfile)
-  print,'inancfile='+inancfile
   if(~file_test(Inancfile)) then begin
     message_text=[ $
       'Ancillary file does not exist!',$
@@ -113,7 +140,6 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   
   envi_open_file, Inancfile, r_fid=ancillaryfile_fid, $
     /no_realize
-  ;check if operation cancelled
   if (ancillaryfile_fid eq -1) then begin
     print,strtrim('Error or No opening ancillary file',2)
     print,'Ancillary File='+strtrim(Inancfile,2)
@@ -231,12 +257,12 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   if (match ge 0) then print,'info match for Tzero= ',strtrim(base_info[match],2)
   print,'Old Tzero=',Tzero
   
-  print,'initial wl[0],d_wl='+strtrim(string(wl[0]),2)+','+strtrim(string(wl[1]-wl[0]),2)
+  print,'initial wl[0], d_wl (meter) = '+strtrim(string(wl[0]),2)+','+strtrim(string(wl[1]-wl[0]),2)
   
   wl=wl/c2+Tzero
   wl=findgen(nb)*time_step
   
-  print,'changed wl[0],d_wl='+strtrim(string(wl[0]),2)+','+strtrim(string(wl[1]-wl[0]),2)
+  print,'changed wl[0], d_wl (ns) = '+strtrim(string(wl[0]),2)+','+strtrim(string(wl[1]-wl[0]),2)
   
   ;set the low zenith range from early basefix
   match = -1
@@ -336,23 +362,17 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   p_stat=ptr_new(sav,/no_copy)
   ;compute the zeniths and azimuths
   ;
-  status = dwel_set_theta_phi_oz(p_stat,zen_tweak)
+  status = dwel_set_theta_phi_nsf(p_stat,zen_tweak)
   ;put the results into the local arrays
   zeniths=(*p_stat).ShotZen
   azimuths=(*p_stat).ShotAzim
   ptr_free, p_stat
   
   ;--------------------------------------------
-  ;now get the output file name
-  
+  ;now get the output file name  
   output:
-  
-  n_base=strlen(fname)
-  n_dot=strpos(fname,'.',/reverse_search)
-  
-  ;============================================
-  
   ;check if output file is open in envi
+  ;if it's open in envi, them close and remove the file from envi. 
   if(file_test(OutUpdatedFile)) then begin
     fids=envi_get_file_ids()
     if(fids[0] eq -1) then begin
@@ -370,7 +390,6 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   
   ;open the input file
   err=0
-  ;open input file
   openr,inlun,FilteredFile,/get_lun,error=err
   if (err gt 0) then begin
     err=7
@@ -468,7 +487,7 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   sum2=0b
   d=0b
   
-  ;mu and sig are length the number of bands
+  ;pulse and sig are length the number of bands
   mean_base=total(pulse[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
   mean_base_sig=total(sig[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
   if (abs(mean_base) lt 1.0e-3) then cv_base=0.0 else cv_base=100.0*mean_base_sig/mean_base
@@ -633,6 +652,7 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   CasingMeanCV=100.0*CasingMeanSig/CasingMeanWfMax
   
   casing_power=total(reform(pulse[tmpind]),/double)
+  tmpmax = max(pulse, Tzero_I)
   if (abs(casing_power) lt 1.0e-6) then casing_fwhm=0.0 else $
     casing_fwhm=(wl[1]-wl[0])*casing_power/max(pulse)
   tmpind=0b
@@ -660,7 +680,7 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   t_zerol=t_zerol+delta
   
   av_tzero=mean(t_zerol[50:nl-11])
-  print,'Average Tzero='+strtrim(string(av_tzero),2)+' ns'
+  print,'Average Tzero of each scan line = '+strtrim(string(av_tzero),2)+' ns'
   
   t_zerol[0:49]=av_tzero
   t_zerol[nl-10:nl-1]=av_tzero
@@ -829,7 +849,9 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
   wl_out=fltarr(nb_out)
   posk=where(wl_range lt 0.0,nposk)
   wlk=wl_range[posk[nposk-1]]
-  lambda=-wlk/(time_step*c2)
+  ilambda=-wlk/(time_step*c2)   ; initial fraction of the time between Tzero and
+                                ; the closest early waveform bin in a time
+                                ; interval
   wl_out=wl_range-wlk
   posk=0b
   posk=where((wl_out ge -6.0) and (wl_out le 95.0),nb_resamp)
@@ -873,6 +895,19 @@ pro DWEL_Filtered_FixBase_Cmd_oz, FilteredFile, Inancfile, OutUpdatedFile, get_i
     ;resample to new standard ranges
     wl_loc=fltarr(nb_out)
     wl_loc=wl_range+cmreplicate(c2*(Tzero-t_zerol[i]),nb_out)
+    ; ------------------------debug--------------------------
+    if (Tzero - t_zerol[i]) gt 0.0 then begin
+      if (Tzero - t_zerol[i]) gt ilambda*time_step then begin
+        print, 'the bin of zero range is changed from range label at scan line: ' + $
+          '', i
+      endif 
+    endif else begin
+      if (t_zerol[i] - Tzero) gt (1-ilambda)*time_step then begin
+        print, 'the bin of zero range is changed from range label at scan line: ' + $
+          '', i
+      endif 
+    endelse 
+    ; ---------------------end of debug----------------------
     posk=where(wl_loc lt 0.0,nposk)
     wlk=wl_loc[posk[nposk-1]]
     lambda=-wlk/(time_step*c2)
