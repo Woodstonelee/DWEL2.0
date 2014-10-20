@@ -4,7 +4,7 @@
 ;DWEL_GENERAL_FILTER
 ;
 ; PURPOSE:
-;Convolve the pulse model with waveforms. In such way each return pulse will
+;Correlate the pulse model with waveforms. In such way each return pulse will
 ;become an iterated pulse with symmetrical side lobes and some noise may be
 ;filtered. But the transient ringing noise could be enhanced. 
 ;
@@ -31,8 +31,8 @@
 ;None.
 ;
 ; PROCEDURE:
-;Convolve the pulse model with each waveform scan line by scan line and write
-;the convolution results to the output file.  
+;Correlate the pulse model with each waveform scan line by scan line and write
+;the cross correlation results to the output file.  
 ;
 ; MODIFICATION HISTORY:
 ;David Jupp, Sept 2014 - Created this routine. 
@@ -167,7 +167,15 @@ function dwel_general_filter, infile, p, mpos, outfile, ierr
     T_pad=0b
     B_pad=0b
     line=0b
-    c=convol(t,pp_filter,psum)
+    c=convol(t,pp_filter,psum)  ; IDL's convol function is very
+                                ; confusing. By default it actually calculates
+                                ; cross-correlation rather than math-defined
+                                ; convolution bc it doesn't reverse the
+                                ; kernal. However if you set the keyword
+                                ; 'CENTER' explicitly to zero, it does
+                                ; math-defined convolution! Here in EVI/DWEL
+                                ; waveform processing, we always do cross
+                                ; correlation to find signal. 
     ;    if (i eq 0) then help,c
     b=reform(c[*,num_pad:num_pad+nbands-1])
     ;    if (i eq 0) then help,b
