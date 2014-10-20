@@ -1,6 +1,47 @@
 ;
-function dwel_general_filter,infile,p,mpos,outfile,ierr
+;+
+; NAME:
+;DWEL_GENERAL_FILTER
+;
+; PURPOSE:
+;Convolve the pulse model with waveforms. In such way each return pulse will
+;become an iterated pulse with symmetrical side lobes and some noise may be
+;filtered. But the transient ringing noise could be enhanced. 
+;
+; CATEGORY:
+;DWEL waveform processing, pulse filtering.
+;
+; CALLING SEQUENCE:
+;dwel_general_filter, infile, p, mpos, outfile, ierr
+;
+; INPUTS:
+;infile = input file name of DWEL cube to be filtered.
+;p = the pulse model to filter waveforms. 
+;mpos = the origin (max value) point of the filter, usually the centre, the
+;index to this location.
+;outfile = output file name of the filtered DWEL waveform cube. 
+; ierr = a variable to receive error code.
+;
+; OUTPUTS:
+;
+; SIDE EFFECTS:
+;None.
+;
+; RESTRICTIONS:
+;None.
+;
+; PROCEDURE:
+;Convolve the pulse model with each waveform scan line by scan line and write
+;the convolution results to the output file.  
+;
+; MODIFICATION HISTORY:
+;David Jupp, Sept 2014 - Created this routine. 
+;Zhan Li, Oct 2014 - Added documentation comments.
+;-
+function dwel_general_filter, infile, p, mpos, outfile, ierr
   compile_opt idl2
+  envi, /restore_base_save_files
+  envi_batch_init, /no_status_window
   ;
   ;general 1D filter on bands program
   ;NOTE: assumes file is BIL, if not it returns error
@@ -15,7 +56,7 @@ function dwel_general_filter,infile,p,mpos,outfile,ierr
   ;here open the input file and get info eg:
   ;  fid, dt, nsamples, nlines, nbands
   ;
-  envi_open_file, infile,r_fid=fid,/no_interactive_query,/no_realize
+  envi_open_file, infile, r_fid=fid, /no_interactive_query, /no_realize
   if(fid eq -1) then begin
     ierr=2
     goto, cleanup
@@ -43,7 +84,7 @@ function dwel_general_filter,infile,p,mpos,outfile,ierr
   nlines=nl
   nbands=nb
   
-  nbytes=dt2nb(dt)
+  nbytes=dt2nb(dt) ; get the number of bytes from the data type. 
   
   ;set data type (based on input file)
   if (dt lt 4 or dt gt 9) then begin
@@ -59,7 +100,7 @@ function dwel_general_filter,infile,p,mpos,outfile,ierr
   nlead = mpos
   ntrail = n_elements(p)-nlead-1
   
-  ; Pad pulse to make symmetrical about the peak
+  ; Pad pulse with zeros to make symmetrical about the peak
   ppad=float(p)
   if (ntrail gt nlead) then begin
     ppad = [replicate(0.0,ntrail-nlead),p]
@@ -106,12 +147,17 @@ function dwel_general_filter,infile,p,mpos,outfile,ierr
   ; then Write to output file.
   for i=0L,nlines-1L do begin
     ;    line = envi_get_slice(fid=fid, /bil, pos=pos, line=i, xs=0, xe=nsamples-1)  ; line is ns by nb
-    line=read_binary(inlun,data_start=pointsz,data_dims=[nsamples,nbands],data_type=dt)
-    pointsz=long64(pointsz)+long64(bufrs)
+    line=read_binary(inlun, data_start=pointsz, data_dims=[nsamples,nbands], $
+      data_type=dt)
+    pointsz=long64(pointsz) + long64(bufrs)
     b=fltarr(nsamples,nbands)
     ;
-    T_Pad=total(float(line[*,0:29]),2)/30.0 ; ns by 1 array, each element is an average of the first 30 bins of each waveform
-    T_pad=cmreplicate(T_pad,num_pad)  ; ns by num_pad array, each row is the averages of all columns in this line
+    T_Pad=total(float(line[*,0:29]),2)/30.0 ; ns (column) by 1 (row) array, each
+                                ; element is an average of the first 30 bins of
+                                ; each waveform
+    T_pad=cmreplicate(T_pad,num_pad)        ; ns (column) by num_pad (row)
+                                ; array, each row is the averages of all columns
+                                ; in this line 
     ;    if (i eq 0) then help,t_pad
     B_pad=total(float(line[*,nbands-30:nbands-1]),2)/30.0 ; average of the last 30 bins
     B_pad=cmreplicate(B_pad,num_pad)
