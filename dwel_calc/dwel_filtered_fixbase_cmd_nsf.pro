@@ -43,7 +43,9 @@
 ;David Jupp, Sept 2014 - Created this routine. 
 ;Zhan Li, Oct 2014 - Added documentation comments.
 ;-
-pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_info_stats, zen_tweak, err
+pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
+  get_info_stats, zen_tweak, err
+
   ;; FilteredFile: the file name of the DWEL cube file that had been base and sat fixed and then filtered
   ;
   compile_opt idl2
@@ -596,7 +598,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
     printf,ctfile,strtrim(outstring,2)
     outstring='Casing_fwhm='+strtrim(string(casing_fwhm,format='(f10.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    printf,ctfile,'Line_Num,Casing_Num,Casing_Max_Val,Casing_Max_Pos,Offset,Line_Scale,Casing_Power,Casing_FWHM'
+    printf,ctfile,'Line_Num,Casing_Num,Casing_Max_Val,Casing_Max_Pos,Offset,Line_Scale,Casing_Power,Casing_FWHM,Casing_Mean_Tzero'
     flush, ctfile
     ;
     for i=0L,nl-1L do begin
@@ -854,7 +856,53 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
                                 ; interval
   wl_out=wl_range-wlk
   posk=0b
-  posk=where((wl_out ge -6.0) and (wl_out le 95.0),nb_resamp)
+  ;; Select a distance range for output waveforms. 
+  ;; The range should be between the minimum and maximum of wl_out or even
+  ;; smaller if an empirical range is supplied, e.g. [-0.6, 95.0]. 
+  ;; Also notice that in the following we correct Tzero scan line by scan line
+  ;; (or in future possibly shot by shot). This Tzero shift might cause the
+  ;; possible maximum range in a scan line to be smaller than our select output
+  ;; range here if we don't have pre-caution here. 
+  ;; According to Glenn Howe in Sept. 2014, the Tzero variance from shot to shot
+  ;; is around 3ns ~ 4ns. If we set the output range to be 1m within the range
+  ;; of wl_out here and an empirical range, the following Tzero correction
+  ;; is expected to be safe to give waveforms covering the whole output
+  ;; range. Otherwise in the following processing, nb_loc (number of bins in a
+  ;; waveform within output range) might not be equal to nb_resamp (number of
+  ;; bins in an expected output waveform)
+  
+  ;; first set up an empirical output range. 
+  outrangemin = -6.0
+  outrangemax = 95.0
+  ;; check this output range against possible range of wl_out
+  if outrangemin lt min(wl_out) then begin
+    outrangemin = min(wl_out)
+  endif 
+  if outrangemax gt max(wl_out) then begin
+    outrangemax = max(wl_out)
+  endif 
+  ;; take the Tzero variance into account
+  outrangemin = outrangemin + 1.0
+  outrangemax = outrangemax - 1.0
+  ;; after we got a range from a test scan, fix the output range here but do
+  ;; some checks and give warnings (or no warning, the following processing will
+  ;; throw errors and stop)
+  if (outrangemin - 1.0) gt -5.0 then begin
+    print, 'WARNING: possible minimum range is larger than the given one!'
+    print, 'Possible minimum range = ' + strtrim(string(outrangemin - 1.0), 2)
+    print, 'Given minimum range = -5.0'
+  endif 
+  if (outrangemax + 1.0) lt 93.5 then begin
+    print, 'WARNING: possible maximum range is smaller than the given one!'
+    print, 'Possible maximum range = ' + strtrim(string(outrangemax + 1.0), 2)
+    print, 'Given maximum range = 93.5'
+  endif 
+  outrangemin = -5.0
+  outrangemax = 93.5
+  print, 'Output range (meter) = [' + strtrim(string(outrangemin), 2) + ', ' + $
+    strtrim(string(outrangemax), 2) + ']'
+  posk=where((wl_out ge outrangemin) and (wl_out le outrangemax),nb_resamp)
+  print, 'Number of bins in output range = ' + strtrim(string(nb_resamp), 2)
   wl_out=reform(wl_out[posk])
   pos_pos=where(wl_out gt 0.0,npos_r)
   if(npos_r le 0) then begin
@@ -895,29 +943,16 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
     ;resample to new standard ranges
     wl_loc=fltarr(nb_out)
     wl_loc=wl_range+cmreplicate(c2*(Tzero-t_zerol[i]),nb_out)
-    ; ------------------------debug--------------------------
-    if (Tzero - t_zerol[i]) gt 0.0 then begin
-      if (Tzero - t_zerol[i]) gt ilambda*time_step then begin
-        print, 'the bin of zero range is changed from range label at scan line: ' + $
-          '', i
-      endif 
-    endif else begin
-      if (t_zerol[i] - Tzero) gt (1-ilambda)*time_step then begin
-        print, 'the bin of zero range is changed from range label at scan line: ' + $
-          '', i
-      endif 
-    endelse 
-    ; ---------------------end of debug----------------------
     posk=where(wl_loc lt 0.0,nposk)
     wlk=wl_loc[posk[nposk-1]]
     lambda=-wlk/(time_step*c2)
     wl_new=wl_loc-wlk
     posk=0b
-    posk=where((wl_new ge -6.0) and (wl_new le 95.0),nb_loc)
+    posk=where((wl_new ge outrangemin) and (wl_new le outrangemax),nb_loc)
     if (nb_loc ne nb_resamp) then begin
       print,'Resampled shot inconsisten, nb_loc='+strtrim(string(nb_loc),2)
       print,'Expected Value='+strtrim(string(nb_resamp),2)
-      print,'IDL Line Number='+strtrim(string(i),2)
+      print,'Scan Line Number='+strtrim(string(i),2)
       print,'Tzero,T_zerol=',Tzero,t_zerol[i]
       err_flag=1b
       err=33

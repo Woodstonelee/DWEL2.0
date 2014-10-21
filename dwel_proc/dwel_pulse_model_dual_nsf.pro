@@ -1,4 +1,4 @@
-pro DWEL_pulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
+pro dwel_pulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
   compile_opt idl2
   
   ;THis routine sets up the model for the base recorded DWEL pulse.
@@ -25,7 +25,7 @@ pro DWEL_pulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, 
   c=0.299792458
   c2=c/2.0
   
-  ;; Oz DWEL July 2014
+  ;; NSF DWEL Oct 2014
   if (wavelength eq 1064) then begin
     ; Mean pulse model
     p_time=[$

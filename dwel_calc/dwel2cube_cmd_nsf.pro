@@ -256,6 +256,13 @@ pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
   AncillaryFile=''
   err_flag=0
   err=0
+
+  ;; get the size of input file to be processed. It will be used in later
+  ;; summary of processing time. 
+  procfilesize = file_info(DWEL_H5File)
+  procfilesize = procfilesize.size
+  ;; get the time now as the start of processing
+  starttime = systime(1)
   
   ;; give a default scan encoder value of nadir shift here if you get one so
   ;; that you don't have to put nadir shift in the command everytime
@@ -386,4 +393,14 @@ pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
   free_lun,inlun,/force
   if (err_flag ne 0) then print,'Returning with error from dwel2cube_cmd'
   heap_gc,/verbose
+  
+  ;; write processing time summary
+  print, '**************************************'
+  print, 'Processing program = dwel2cube_cmd_nsf'
+  print, 'Input HDF5 file size = ' + $
+    strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
+  print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), 2) + ' ' + $
+    'seconds'
+  print, '**************************************'
+
 end

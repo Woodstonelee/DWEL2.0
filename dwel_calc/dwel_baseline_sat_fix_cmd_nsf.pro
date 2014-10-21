@@ -72,7 +72,7 @@ function apply_sat_fix_nsf, basefixed_satwf, pulse_model, i_val, satfixedwf=satf
   return, 1
 end
 
-pro DWEL_Baseline_Sat_Fix_Cmd_nsf, DWELCubeFile, ancillaryfile_name, $
+pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     out_satfix_name, Casing_Range, get_info_stats, zen_tweak, err
   ;; DWELCubeFile: the full file name of the DWEL cube file
   ;; Casing_Range: [min_zen_angle, max_zen_angle], the zenith angle
@@ -122,6 +122,13 @@ pro DWEL_Baseline_Sat_Fix_Cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   sat_test=1023L
   ;============================================
   
+  ;; get the size of input file to be processed. It will be used in later
+  ;; summary of processing time. 
+  procfilesize = file_info(DWELCubeFile)
+  procfilesize = procfilesize.size
+  ;; get the time now as the start of processing
+  starttime = systime(1)
+
   print,'pulse_width_range='+strtrim(string(pulse_width_range),2)
   
   ;clean up any fids which are no longer where they were!
@@ -1116,5 +1123,15 @@ pro DWEL_Baseline_Sat_Fix_Cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   if (err ne 0) then print,'Returning from DWEL_Baseline_Sat_Fix_Cmd_nsf with error'
   heap_gc,/verbose
   ;
+
+  ;; write processing time summary
+  print, '**************************************************'
+  print, 'Processing program = dwel_baseline_sat_fix_cmd_nsf'
+  print, 'Input DWEL cube file size = ' + $
+    strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
+  print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), 2) + ' ' + $
+    'seconds'
+  print, '**************************************************'
+
   return
 end
