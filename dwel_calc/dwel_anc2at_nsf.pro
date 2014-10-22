@@ -299,7 +299,7 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   endelse
   
   if (~srate_set) then print,'Sampling rate NOT read from headers!!!'
-  print,'sampling rate=',srate
+  print, 'sampling rate=' + strtrim(string(srate), 2)
   
   ;Get the beam divergence
   buf=''
@@ -441,8 +441,8 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
         status=t_Andrieu_xy2tp(1,x,y,th,ph)
         A_theta[j]=th
         A_phi[i]=ph
-        theta[j,i]=round(100.0*th)
-        phi[j,i]=round(100.0*ph)
+        theta[j,i]=round(angle_scale*th)
+        phi[j,i]=round(angle_scale*ph)
       endfor
       if (total(reform(num_val[*,i])) gt 0) then begin
         temp=sort(reform(pos_ind[1,*])) ; sort the pos_ind by column, the shot number/zenith
@@ -469,9 +469,9 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   a_zen=strtrim(string(A_theta,format='(f12.4)'),2)
   a_azm=strtrim(string(A_phi,format='(f12.4)'),2)
-  
-  DWEL_Andrieu_zenith=a_zen
-  DWEL_Andrieu_azimuth=a_azm
+
+  DWEL_Andrieu_zenith=strtrim('zen=('+strcompress(strjoin(a_zen,',',/single),/remove_all)+')',2)
+  DWEL_Andrieu_azimuth=strtrim('azm=('+strcompress(strjoin(a_azm,',',/single),/remove_all)+')',2)
   
   a_zen=0b
   a_azm=0b
@@ -486,19 +486,19 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   DWEL_Anc2AT_info=[ $
     'Program='+'dwel_anc2at_nsf, DWEL Ancillary to AT projection Qlook',$
-    'Processing Date Time='+strtrim(systime(),2),$
-    'Projection type='+ptype,$
-    'Projection name='+pname,$
+    'Processing_Date_Time='+strtrim(systime(),2),$
+    'Projection_type='+ptype,$
+    'Projection_name='+pname,$
     'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
     'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
     'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
     'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
     'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
     'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
-    'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
-    'Output scale='+strtrim(string(scaler,format='(f10.2)'),2), $
-    'Angular scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
-    'Overlap azimuth='+strtrim(string(overlap, format='(f10.3)'), 2) $
+    'Mean_image_scale='+strtrim(string(scale,format='(f10.2)'),2),$
+    'Output_scale='+strtrim(string(scaler,format='(f10.2)'),2), $
+    'Angular_scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
+    'Overlap_azimuth='+strtrim(string(overlap, format='(f10.3)'), 2) $
     ]
   DWEL_Anc2AT_info=strtrim(DWEL_Anc2AT_info,2)
   
