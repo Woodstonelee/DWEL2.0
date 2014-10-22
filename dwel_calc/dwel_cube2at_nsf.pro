@@ -18,6 +18,11 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
 
+  resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
+  resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either
+  resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
+  resolve_routine, 'CMREPLICATE', /compile_full_file, /either
+
   print, 'entering dwel_cube2at'
 
   ;; get the size of input file to be processed. It will be used in later
@@ -661,19 +666,19 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   DWEL_Projection_info=strarr(14)
   DWEL_Projection_info=[ $
     'Program='+'DWEL_Cube2AT_NSF Projection Routine',$
-    'Processing_Date_Time='+strtrim(systime(),2),$
-    'Projection_type='+ptype,$
-    'Projection_name='+pname,$
-    'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
-    'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
-    'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
-    'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
-    'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
-    'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
-    'Mean_image_scale='+strtrim(string(scale,format='(f10.2)'),2),$
-    'Output_scale='+strtrim(string(scaler,format='(f10.2)'),2), $
-    'Angular_scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
-    'Overlap_azimuth='+strtrim(string(overlap, format='(f10.3)'), 2) $
+    'Processing Date Time='+strtrim(systime(),2),$
+    'Projection type='+ptype,$
+    'Projection name='+pname,$
+    'Beam Divergence (mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
+    'Scan Step (mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
+    'Sampling Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
+    'output resolution (mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
+    'max zenith angle (deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
+    'Zen tweak (enc)='+strtrim(string(zen_tweak),2),$
+    'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
+    'Output scale='+strtrim(string(scaler,format='(f10.2)'),2), $
+    'Angular scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
+    'Overlap azimuth (deg)='+strtrim(string(overlap, format='(f10.3)'), 2) $
     ]
   DWEL_Projection_info=strtrim(DWEL_Projection_info,2)
   

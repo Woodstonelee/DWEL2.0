@@ -1,9 +1,11 @@
 function DWEL_get_headers, in_fid, headers
   compile_opt idl2
+
+  resolve_routine, 'DWEL_HEADER_PARSE', /compile_full_file, /either
+
   ; routine to read all user-defined header info from EVI files.
   ; calling routine must have defined the headers structure with the
   ; tag 'f_base' containing the base name of the EVI file
-  
   
   ; Initialise the headers_present counter
   headers=create_struct('headers_present',0s,headers)

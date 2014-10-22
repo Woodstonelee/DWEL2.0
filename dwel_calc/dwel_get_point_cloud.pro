@@ -2,7 +2,7 @@
 pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
 
   compile_opt idl2
-  
+
   ;set data
   zero=0.0
   error=0
@@ -1247,11 +1247,23 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
 end
 
 ;======================================================================
-
-pro DWEL_get_point_cloud,infile,ancfile,outfile,settings,err
+;; settings is a structure variable containing all setting for point cloud
+;; generation. 
+pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
 
   compile_opt idl2
-  
+  envi, /restore_base_save_files
+  envi_batch_init
+
+  resolve_routine, 'CMREPLICATE', /compile_full_file, /either
+
+  ;; get the size of input file to be processed. It will be used in later
+  ;; summary of processing time. 
+  procfilesize = file_info(infile)
+  procfilesize = procfilesize.size
+  ;; get the time now as the start of processing
+  starttime = systime(1)
+
   ; infile is the dwel file of data
   ; ancfile is its ancillary
   ; cal_dat=0 no calibration =1 carry out calibration
@@ -1317,7 +1329,7 @@ pro DWEL_get_point_cloud,infile,ancfile,outfile,settings,err
   DWEL_date_time=''
   match = -1
   for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*DWEL Date Time*')) then match=i
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*DWEL_Date_Time*')) then match=i
   endfor
   if (match ge 0) then begin
     sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
@@ -1840,6 +1852,16 @@ pro DWEL_get_point_cloud,infile,ancfile,outfile,settings,err
   free_lun,tfile,/force
   
   heap_gc,/verbose
+
+  ;; write processing time summary
+  print, '*****************************************'
+  print, 'Processing program = dwel_get_point_cloud'
+  print, 'Input cube file size = ' + $
+    strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
+  print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), $
+    2) + ' ' + $
+    'seconds'
+  print, '*****************************************'
   
   return
   

@@ -248,6 +248,10 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
   compile_opt idl2
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
+
+  ;; explicitly ask IDL to compile the routines outside this script but called
+  ;; here
+  resolve_routine, 'dwel_get_config_info', /compile_full_file, /either
   
   inlun=30
   anc_name=''
@@ -303,7 +307,7 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
   endif
   print,'consum=',consum
   
-  Name_Info=['Program=dwel2cube_cmd_nsf, import DWEL HDF5 file to ENVI cube image',$
+  Name_Info=['Program=dwel_hdf52cube_cmd_nsf, import DWEL HDF5 file to ENVI cube image',$
     'Original DWEL HDF File='+strtrim(f_base,2)]
   Site_Info=[ $
     'Scan Description='+strtrim('DWEL_nsf Scan: '+strtrim(consum,2),2),$
@@ -339,7 +343,7 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
   
   DWEL_Adaptation=['Band "Waveform Mean" is actually "Waveform Max"', 'Band "Scan Encoder" is value corrected for nadir shift']
   DWEL_Adaptation=[DWEL_Adaptation, 'Wavelength='+strtrim(Wavelength_Label, 2)]
-  DWEL_Adaptation=[DWEL_Adaptation, 'Nadir shift of scan encoder='+strtrim(nadirelevshift, 2)]
+  DWEL_Adaptation=[DWEL_Adaptation, 'Scan encoder of zenith point='+strtrim(nadirelevshift, 2)]
   
   ENVI_SETUP_HEAD, fname=DataCube_File, $
     ns=HeaderInfo.samples, nl=HeaderInfo.lines, nb=HeaderInfo.databands, $
@@ -403,4 +407,5 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
     'seconds'
   print, '******************************************'
 
+  return
 end

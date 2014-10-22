@@ -82,6 +82,13 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   compile_opt idl2
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
+
+  resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
+  resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either
+  resolve_routine, 'DWEL_PULSE_MODEL_DUAL_NSF', /compile_full_file, /either
+  resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
+  resolve_routine, 'CMREPLICATE', /compile_full_file, /either
+
   ;
   lun=99
   inlun=105
@@ -220,7 +227,7 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     }
     
   ;find all of the DWEL headers in the hdr file as defined by FID
-  status=DWEL_get_headers(infile_fid,DWEL_headers)
+  status=dwel_get_headers(infile_fid,DWEL_headers)
   
   if (not status) then begin
     print,strtrim('Bad FID in DWEL_get_headers! DWEL Header setup cancelled!',2)
@@ -749,20 +756,20 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     'Comment=Tzero is the time at which the peak of the output pulse occurs',$
     'Tzero='+strtrim(string(Tzero,format='(f10.3)'),2),$
     'srate='+strtrim(string(srate,format='(f10.2)'),2),$
-    'out_of_pulse='+strtrim(string(out_of_pulse,format='(i10)'),2),$
-    'Target_dn='+strtrim(string(target_dn,format='(f10.2)'),2),$
-    'scale_mean='+strtrim(string(scale_mean,format='(f10.3)'),2),$
-    'Noise_RMS='+strtrim(string(mean_base_sig,format='(f10.3)'),2),$
+    'out of pulse='+strtrim(string(out_of_pulse,format='(i10)'),2),$
+    'Target DN='+strtrim(string(target_dn,format='(f10.2)'),2),$
+    'scale mean='+strtrim(string(scale_mean,format='(f10.3)'),2),$
+    'Noise RMS='+strtrim(string(mean_base_sig,format='(f10.3)'),2),$
     'Low(deg)='+strtrim(string(low,format='(f10.2)'),2),$
     'High(deg)='+strtrim(string(high,format='(f10.2)'),2),$
     'delta(ns)='+strtrim(string(delta,format='(f10.4)'),2),$
-    'casing_max='+strtrim(string(CasingMeanWfMax,format='(f10.3)'),2),$
-    'casing_sig='+strtrim(string(CasingMeanSig,format='(f10.3)'),2),$
-    'Casing_CV(%)='+strtrim(string(CasingMeanCV,format='(f10.2)'),2),$
-    'casing_fwhm(nsec)='+strtrim(string(casing_fwhm,format='(f10.4)'),2),$
-    'casing_fwhm(m)='+strtrim(string(casing_fwhm*c2,format='(f10.4)'),2),$
-    'model_fwhm(nsec)='+strtrim(string(model_fwhm,format='(f10.4)'),2),$
-    'model_fwhm(m)='+strtrim(string(model_fwhm*c2,format='(f10.4)'),2) $
+    'casing max='+strtrim(string(CasingMeanWfMax,format='(f10.3)'),2),$
+    'casing sig='+strtrim(string(CasingMeanSig,format='(f10.3)'),2),$
+    'Casing CV(%)='+strtrim(string(CasingMeanCV,format='(f10.2)'),2),$
+    'casing fwhm(nsec)='+strtrim(string(casing_fwhm,format='(f10.4)'),2),$
+    'casing fwhm(m)='+strtrim(string(casing_fwhm*c2,format='(f10.4)'),2),$
+    'model fwhm(nsec)='+strtrim(string(model_fwhm,format='(f10.4)'),2),$
+    'model fwhm(m)='+strtrim(string(model_fwhm*c2,format='(f10.4)'),2) $
     ]
   DWEL_base_fix_info=strtrim(DWEL_base_fix_info,2)
   
@@ -998,10 +1005,10 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     'Title=Parameters for Saturation Fixing',$
     'Model='+strtrim('NSF_DWEL_pulse_model_dual',2),$
     'Sat test value='+strtrim(sat_test,2), $
-    'Saturated_(pixels)='+strtrim(totsat,2), $
-    'Bad_(pixels)='+strtrim(alltotbad,2), $
-    'Stats_Format=(Num,Min,Max,Mean,RMS)',$
-    'Range_Stats=('+'0'+')',$
+    'Saturated(pixels)='+strtrim(totsat,2), $
+    'Bad(pixels)='+strtrim(alltotbad,2), $
+    'Stats Format=(Num,Min,Max,Mean,RMS)',$
+    'Range Stats=('+'0'+')',$
     'Sat Fixed File='+out_base, $
     'Updated Ancillary File='+strtrim(anc_base,2)]
   DWEL_sat_info=strtrim(DWEL_sat_info,2)
@@ -1094,12 +1101,9 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   
   ;write out the previous header records
   status=DWEL_put_headers(anc_fid,DWEL_headers)
-  ;
-  ;write the new header(s) into the HDR file
-  DWEL_Adaptation=[DWEL_Adaptation, 'Band "Waveform Mean" is actually "Waveform Max"', 'Band "Scan Encoder" is value corrected for nadir shift in HDF raw data']
-  envi_assign_header_value, fid=anc_fid, $
-    keyword='DWEL_Adaptation', $
+  envi_assign_header_value, fid=anc_fid, keyword='DWEL_Adaptation', $
     value=DWEL_Adaptation
+  ;; write new header records
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_base_fix_info', $
     value=DWEL_base_fix_info
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_sat_info', $

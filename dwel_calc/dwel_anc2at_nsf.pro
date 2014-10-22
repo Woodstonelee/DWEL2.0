@@ -8,7 +8,7 @@ pro DWEL_val_block
   eta=1.0e-7
 end
 
-pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
+pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     output_resolution, zen_tweak, err, Overlap=overlap
   ; Max_Zenith_Angle: in unit of degree
   ; output_resolution: in unit of mrad
@@ -17,6 +17,19 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   compile_opt idl2
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
+
+  resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
+  resolve_routine, 'DWEL_HEADER_PARSE', /compile_full_file, /either
+  resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either
+  resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
+  resolve_routine, 'CMREPLICATE', /compile_full_file, /either
+
+  ;; get the size of input file to be processed. It will be used in later
+  ;; summary of processing time. 
+  procfilesize = file_info(DWEL_Anc_File)
+  procfilesize = procfilesize.size
+  ;; get the time now as the start of processing
+  starttime = systime(1)
   
   ;;;;;;;;;;;;;;;;;;;;;;;;
   ; some default paramters
@@ -486,19 +499,19 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   DWEL_Anc2AT_info=[ $
     'Program='+'dwel_anc2at_nsf, DWEL Ancillary to AT projection Qlook',$
-    'Processing_Date_Time='+strtrim(systime(),2),$
-    'Projection_type='+ptype,$
-    'Projection_name='+pname,$
-    'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
-    'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
-    'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
-    'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
-    'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
-    'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
-    'Mean_image_scale='+strtrim(string(scale,format='(f10.2)'),2),$
-    'Output_scale='+strtrim(string(scaler,format='(f10.2)'),2), $
-    'Angular_scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
-    'Overlap_azimuth='+strtrim(string(overlap, format='(f10.3)'), 2) $
+    'Processing Date Time='+strtrim(systime(),2),$
+    'Projection type='+ptype,$
+    'Projection name='+pname,$
+    'Beam Divergence (mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
+    'Scan Step (mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
+    'Sampling Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
+    'output resolution (mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
+    'max zenith angle (deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
+    'Zen tweak (enc)='+strtrim(string(zen_tweak),2),$
+    'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
+    'Output scale='+strtrim(string(scaler,format='(f10.2)'),2), $
+    'Angular scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
+    'Overlap azimuth (deg)='+strtrim(string(overlap, format='(f10.3)'), 2) $
     ]
   DWEL_Anc2AT_info=strtrim(DWEL_Anc2AT_info,2)
   
@@ -650,5 +663,15 @@ pro DWEL_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   p_list=0b
   
   if (err gt 0) then print,'Error called from dwel_anc2at_nsf'
+
+  ;; write processing time summary
+  print, '************************************'
+  print, 'Processing program = dwel_anc2at_nsf'
+  print, 'Input DWEL ancillary file size = ' + $
+    strtrim(string(double(procfilesize)/(1024.0*1024.0)), 2) + ' M'
+  print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), $
+    2) + ' ' + $
+    'seconds'
+  print, '************************************'
   
 end

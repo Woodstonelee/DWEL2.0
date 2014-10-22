@@ -53,6 +53,13 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   envi_batch_init, /no_status_window
   ;
 
+  resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either
+  resolve_routine, 'DWEL_ITPULSE_MODEL_DUAL_NSF', /compile_full_file, /either
+  resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
+  resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
+  resolve_routine, 'DT2NB', /compile_full_file, /either
+  resolve_routine, 'CMREPLICATE', /compile_full_file, /either
+
   ;; get the size of input file to be processed. It will be used in later
   ;; summary of processing time. 
   procfilesize = file_info(FilteredFile)
@@ -771,20 +778,20 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
     'Comment=Tzero is the time at which the peak of the output iterated pulse occurs',$
     'Tzero='+strtrim(string(Tzero,format='(f10.3)'),2),$
     'srate='+strtrim(string(srate,format='(f10.2)'),2),$
-    'out_of_pulse='+strtrim(string(out_of_pulse,format='(i10)'),2),$
-    'Target_dn='+strtrim(string(target_dn,format='(f10.2)'),2),$
-    'scale_mean='+strtrim(string(scale_mean,format='(f10.3)'),2),$
-    'Noise_RMS='+strtrim(string(mean_base_sig,format='(f10.3)'),2),$
+    'out of pulse='+strtrim(string(out_of_pulse,format='(i10)'),2),$
+    'Target DN='+strtrim(string(target_dn,format='(f10.2)'),2),$
+    'scale mean='+strtrim(string(scale_mean,format='(f10.3)'),2),$
+    'Noise RMS='+strtrim(string(mean_base_sig,format='(f10.3)'),2),$
     'Low(deg)='+strtrim(string(low,format='(f10.2)'),2),$
     'High(deg)='+strtrim(string(high,format='(f10.2)'),2),$
     'delta(ns)='+strtrim(string(delta,format='(f10.4)'),2),$
-    'casing_max='+strtrim(string(CasingMeanWfMax,format='(f10.3)'),2),$
-    'casing_sig='+strtrim(string(CasingMeanSig,format='(f10.3)'),2),$
-    'Casing_CV(%)='+strtrim(string(CasingMeanCV,format='(f10.2)'),2),$
-    'casing_fwhm(nsec)='+strtrim(string(casing_fwhm,format='(f10.4)'),2),$
-    'casing_fwhm(m)='+strtrim(string(casing_fwhm*c2,format='(f10.4)'),2),$
-    'model_fwhm(nsec)='+strtrim(string(model_fwhm,format='(f10.4)'),2),$
-    'model_fwhm(m)='+strtrim(string(model_fwhm*c2,format='(f10.4)'),2) $
+    'casing max='+strtrim(string(CasingMeanWfMax,format='(f10.3)'),2),$
+    'casing sig='+strtrim(string(CasingMeanSig,format='(f10.3)'),2),$
+    'Casing CV(%)='+strtrim(string(CasingMeanCV,format='(f10.2)'),2),$
+    'casing fwhm(nsec)='+strtrim(string(casing_fwhm,format='(f10.4)'),2),$
+    'casing fwhm(m)='+strtrim(string(casing_fwhm*c2,format='(f10.4)'),2),$
+    'model fwhm(nsec)='+strtrim(string(model_fwhm,format='(f10.4)'),2),$
+    'model fwhm(m)='+strtrim(string(model_fwhm*c2,format='(f10.4)'),2) $
     ]
   DWEL_filtered_fix_info=strtrim(DWEL_filtered_fix_info,2)
   

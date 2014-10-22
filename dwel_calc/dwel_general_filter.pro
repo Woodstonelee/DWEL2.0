@@ -42,7 +42,9 @@ function dwel_general_filter, infile, p, mpos, outfile, ierr
   compile_opt idl2
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
-  ;
+  
+  resolve_routine, 'DT2NB', /compile_full_file, /either
+  resolve_routine, 'CMREPLICATE', /compile_full_file, /either
 
   ;; get the size of input file to be processed. It will be used in later
   ;; summary of processing time. 
@@ -204,7 +206,7 @@ function dwel_general_filter, infile, p, mpos, outfile, ierr
     dims=dims, file_type=f_type
   inherit=envi_set_inheritance(fid,dims,pos,/full)
   
-  descrip='DWEL_NSF general filter applied to '+strtrim(infile,2)
+  descrip='DWEL NSF general filter applied to '+strtrim(infile,2)
   envi_setup_head,fname=outfile,ns=nsamples,nl=nlines,nb=nbands,$
     xstart=0,ystart=0,inherit=inherit,wl=wl,$
     data_type=dt_br, interleave=1, descrip=descrip, /write

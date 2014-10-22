@@ -49,6 +49,13 @@ pro dwel_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_tweak, $
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
 
+  resolve_routine, 'DWEL_GENERAL_FILTER', /compile_full_file, /either
+  resolve_routine, 'DWEL_FILTERED_FIXBASE_CMD_NSF', /compile_full_file, /either
+  resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
+  resolve_routine, 'DWEL_PULSE_MODEL_DUAL_NSF', /compile_full_file, /either
+
+  err_flag = 0
+
   ;; get the size of input file to be processed. It will be used in later
   ;; summary of processing time. 
   procfilesize = file_info(inbsfixfile)
@@ -156,6 +163,7 @@ pro dwel_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_tweak, $
   ;; file is filtered by the general filter
   ierr = 0
   get_info_stats = 1
+  print, 'Start re-fixing cross-correlation results and write update file ...' 
   dwel_filtered_fixbase_cmd_nsf, outcube_filter, AncillaryFile, outupdatedfile, $
     get_info_stats, zen_tweak, ierr
     
