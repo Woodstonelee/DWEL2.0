@@ -778,7 +778,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
     writeu,ofile,fix(round(scaler*temp))
     
     ;now get the statistics of the image for the extra info file
-    accum[*,k]=total(abs(temp),2,/double)/float(nb_out)
+    accum[*,k]=total((temp),2,/double)/float(nb_out)
     accum_abs[*,k]=total(abs(temp),2,/double)/float(nb_out)
     accum_r[*,k]=transpose(abs(temp))##sc_r
     accum_r2[*,k]=transpose(abs(temp))##sc_r2
