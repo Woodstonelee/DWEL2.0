@@ -43,6 +43,14 @@ function dwel_general_filter, infile, p, mpos, outfile, ierr
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
   ;
+
+  ;; get the size of input file to be processed. It will be used in later
+  ;; summary of processing time. 
+  procfilesize = file_info(infile)
+  procfilesize = procfilesize.size
+  ;; get the time now as the start of processing
+  starttime = systime(1)
+
   ;general 1D filter on bands program
   ;NOTE: assumes file is BIL, if not it returns error
   ierr=0
@@ -207,6 +215,16 @@ function dwel_general_filter, infile, p, mpos, outfile, ierr
   ; Close output files in case
   free_lun, ofile,/force
   ;
+  ;; write processing time summary
+  print, '****************************************'
+  print, 'Processing program = dwel_general_filter'
+  print, 'Input cube file size = ' + $
+    strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
+  print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), $
+    2) + ' ' + $
+    'seconds'
+  print, '****************************************'
+
   return, ierr
 ;
 end

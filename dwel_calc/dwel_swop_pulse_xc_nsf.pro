@@ -48,6 +48,13 @@ pro dwel_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_tweak, $
   compile_opt idl2
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
+
+  ;; get the size of input file to be processed. It will be used in later
+  ;; summary of processing time. 
+  procfilesize = file_info(inbsfixfile)
+  procfilesize = procfilesize.size
+  ;; get the time now as the start of processing
+  starttime = systime(1)
   
   BasefixImageFile = inbsfixfile
   AncillaryFile = inbsfixancfile
@@ -191,4 +198,14 @@ pro dwel_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_tweak, $
   ierr = err_flag
   heap_gc,/verbose
   
+  ;; write processing time summary
+  print, '*******************************************'
+  print, 'Processing program = dwel_swop_pulse_xc_nsf'
+  print, 'Input cube file size = ' + $
+    strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
+  print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), $
+    2) + ' ' + $
+    'seconds'
+  print, '*******************************************'
+
 end

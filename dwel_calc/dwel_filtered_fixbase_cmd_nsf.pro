@@ -52,6 +52,14 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   envi, /restore_base_save_files
   envi_batch_init, /no_status_window
   ;
+
+  ;; get the size of input file to be processed. It will be used in later
+  ;; summary of processing time. 
+  procfilesize = file_info(FilteredFile)
+  procfilesize = procfilesize.size
+  ;; get the time now as the start of processing
+  starttime = systime(1)
+
   lun=99
   inlun=105
   ofile=101
@@ -1114,5 +1122,15 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   if (err_flag) then print,'dwel_filtered_fixbase returned with error'
   heap_gc,/verbose
   ;
+  ;; write processing time summary
+  print, '**************************************************'
+  print, 'Processing program = dwel_filtered_fixbase_cmd_nsf'
+  print, 'Input cube file size = ' + $
+    strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
+  print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), $
+    2) + ' ' + $
+    'seconds'
+  print, '**************************************************'
+
   return
 end

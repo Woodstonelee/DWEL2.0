@@ -233,7 +233,7 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
     
 end
 
-pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
+pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
     Wavelength_Label, DWEL_Height, beam_div, srate, err_flag, nadirshift=nadirelevshift
   ;;
   ;; Because the names of the waveform datasets in HDF5 files were
@@ -395,12 +395,12 @@ pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
   heap_gc,/verbose
   
   ;; write processing time summary
-  print, '**************************************'
-  print, 'Processing program = dwel2cube_cmd_nsf'
+  print, '******************************************'
+  print, 'Processing program = dwel_hdf2cube_cmd_nsf'
   print, 'Input HDF5 file size = ' + $
     strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
   print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), 2) + ' ' + $
     'seconds'
-  print, '**************************************'
+  print, '******************************************'
 
 end

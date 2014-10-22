@@ -19,6 +19,13 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   envi_batch_init, /no_status_window
 
   print, 'entering dwel_cube2at'
+
+  ;; get the size of input file to be processed. It will be used in later
+  ;; summary of processing time. 
+  procfilesize = file_info(DWEL_Cube_File)
+  procfilesize = procfilesize.size
+  ;; get the time now as the start of processing
+  starttime = systime(1)
     
   inlun=100
   ofile=30
@@ -1020,5 +1027,16 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   
   if (err_flag) then print,'Returning from dwel_cube2at with error'
   ;
+
+  ;; write processing time summary
+  print, '*************************************'
+  print, 'Processing program = dwel_cube2at_nsf'
+  print, 'Input cube file size = ' + $
+    strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
+  print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), $
+    2) + ' ' + $
+    'seconds'
+  print, '*************************************'
+
   return
 end
