@@ -1,5 +1,5 @@
 ;======================================================================
-pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
+pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error 
 
   compile_opt idl2
 
@@ -488,7 +488,9 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
   printf,ppfile,strtrim('Point Cloud Pulse Filter Information File',2)
   printf,ppfile,strtrim('Run made at: '+time_date,2)
   printf,ppfile,strtrim('num_pad=',2)+strtrim(string(num_pad),2)
+  ;; fwhm from iterated pulse model in unit of samples
   printf,ppfile,strtrim('d_fwhm(samp)=',2)+strtrim(string(d_fwhm),2)
+  ;; fwhm from iterated pulse model in unit of meters
   printf,ppfile,strtrim('p_fwhm(m)=',2)+strtrim(string(p_fwhm),2)
   printf,ppfile,strtrim('num,h,Pulse,I,I2',2)
   for k=0,num_pad-1 do begin
@@ -1089,8 +1091,8 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
   print,'mean corrected intensity=',emean
   
   pb_info=[$
-    'Stats_Format=(Min,Mean,Max,Stddev)',$
-    'd_Stats=('+strtrim(string(emin),2)+',' $
+    'Stats Format=(Min,Mean,Max,Stddev)',$
+    'd Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1102,7 +1104,7 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
   print,'mean corrected uncalibrated intensity=',emean
   
   pb_info=[pb_info,$
-    'd0_Stats=('+strtrim(string(emin),2)+',' $
+    'd0 Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1114,7 +1116,7 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
   print,'mean I sum=',emean
   
   pb_info=[pb_info,$
-    'I_Stats=('+strtrim(string(emin),2)+',' $
+    'I Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1126,7 +1128,7 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
   print,'mean I2 sum=',emean
   
   pb_info=[pb_info,$
-    'I2_Stats=('+strtrim(string(emin),2)+',' $
+    'I2 Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1137,7 +1139,7 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
   print,'mean Range=',emean
   
   pb_info=[pb_info,$
-    'Range_Stats=('+strtrim(string(emin),2)+',' $
+    'Range Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1149,7 +1151,7 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
   print,'mean Residual=',emean
   
   pb_info=[pb_info,$
-    'Residual_Stats=('+strtrim(string(emin),2)+',' $
+    'Residual Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1222,9 +1224,9 @@ pro apply_ptcl_filter_batch, p,pb_stats,pb_meta,pb_info,error=error
   
   pb_info=[pb_info,$
     'Rmax='+strtrim(string(rmax,format='(f10.3)'),2),$
-    'Percent_hits='+strtrim(string(perc_hit,format='(f10.3)'),2),$
-    'Theory_Ratio='+strtrim(string(ratio_th,format='(f10.4)'),2),$
-    'Estimated_Ratio='+strtrim(string(ratio_est,format='(f10.4)'),2) $
+    'Percent hits='+strtrim(string(perc_hit,format='(f10.3)'),2),$
+    'Theory Ratio='+strtrim(string(ratio_th,format='(f10.4)'),2),$
+    'Estimated Ratio='+strtrim(string(ratio_est,format='(f10.4)'),2) $
     ]
     
   print,'Point Cloud Case Finished - clean up'
@@ -1249,7 +1251,7 @@ end
 ;======================================================================
 ;; settings is a structure variable containing all setting for point cloud
 ;; generation. 
-pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
+pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
 
   compile_opt idl2
   envi, /restore_base_save_files
@@ -1274,21 +1276,46 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
   err=0
   tfile=30
   dwel_pointcloud_info=['']
-  sdevfac=2.0
+  sdevfac=2.0                   ; how many times of standard deviation of noise
+                                ; to determine a threshold to filter out noise
+                                ; points. 
   
-  cal_dat=settings.cal_dat
-  DWEL_az_n=settings.DWEL_az_n
-  runcode=settings.runcode
-  save_zero_hits=settings.save_zero_hits
-  add_dwel=settings.add_dwel
-  save_br=settings.save_br
-  save_pfilt=settings.save_pfilt
-  zlow=settings.zlow
-  zhigh=settings.zhigh
-  xmin=settings.xmin
-  xmax=settings.xmax
-  ymin=settings.ymin
-  ymax=settings.ymax
+  if n_elements(settings) ne 0 or arg_present(settings) then begin
+    ;; user supplies settings
+    cal_dat=settings.cal_dat
+    DWEL_az_n=settings.DWEL_az_n
+    runcode=settings.runcode
+    save_zero_hits=settings.save_zero_hits
+    add_dwel=settings.add_dwel
+    save_br=settings.save_br
+    save_pfilt=settings.save_pfilt
+    zlow=settings.zlow
+    zhigh=settings.zhigh
+    xmin=settings.xmin
+    xmax=settings.xmax
+    ymin=settings.ymin
+    ymax=settings.ymax
+  endif else begin
+    ;; no user settings, take default values
+    cal_dat=0b ;cal_dat=1b if you have calibration for the DWEL
+    DWEL_az_n=0 ; DWEL azimuth of true north
+    runcode=round(systime(/julian)*10) ; set to a value to distinguish runs, be
+                                ; default it is set to the current Julian
+                                ; day*10. 
+    save_zero_hits=1 ; if 1, no-hits is recorded as a valid gap
+    add_dwel=0       ; if 1, two points (0, 0, 0) and (0, 0, dwel_height) are
+                     ; recorded in generated point cloud for reference. 
+    save_br=1b ; if 1, save images of b and r
+    save_pfilt=1b ; if 1, save pfilter image
+    ;set a bounding box of limits for impossible or unnecessary points
+    ;useful to remove impossible points
+    zlow=-5.0 
+    zhigh=50.0
+    xmin=-50.0
+    xmax=50.0
+    ymin=-50.0
+    ymax=50.0
+  endelse 
   
   ;test a little
   
@@ -1329,7 +1356,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
   DWEL_date_time=''
   match = -1
   for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*DWEL_Date_Time*')) then match=i
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*DWEL Date Time*')) then match=i
   endfor
   if (match ge 0) then begin
     sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
@@ -1392,7 +1419,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
     projected = 1b
     match = -1
     for i=0,n_elements(DWEL_headers.DWEL_projection_info)-1 do begin
-      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*Projection_type*')) then match=i
+      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*Projection type*')) then match=i
     endfor
     if (match ge 0) then begin
       sf = strsplit(DWEL_headers.DWEL_projection_info[match],'=',/extract)
@@ -1405,7 +1432,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
   if (projected) then begin
     match = -1
     for i=0,n_elements(DWEL_headers.DWEL_projection_info)-1 do begin
-      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*max_zenith_angle*')) then match=i
+      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*max zenith angle*')) then match=i
     endfor
     if (match ge 0) then begin
       sf = strsplit(DWEL_headers.DWEL_projection_info[match],'=',/extract)
@@ -1516,9 +1543,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
   envi_file_mng, id=fid, /remove
   
   ; Call routine to set up pulse model
-  ;  pulse_model, i_val, t_val, r_val, p_range, p_time, pulse
-  
-  DWEL_itpulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
+  dwel_itpulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
   
   ;S0 is a scale factor that relates the FWHM of the standard pulse and the mean FWHM of the data
   ;it has been chosen to be best for data in between ND015 (maybe 30% saturated) and ND100 (no saturated)
@@ -1587,7 +1612,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
   if (DWEL_headers.filtfix_present) then begin
     match = -1
     for i=0,n_elements(DWEL_headers.dwel_filtered_fix_info)-1 do begin
-      if (strmatch(DWEL_headers.dwel_filtered_fix_info[i],'*Noise_RMS=*')) then match=i
+      if (strmatch(DWEL_headers.dwel_filtered_fix_info[i],'*Noise RMS=*')) then match=i
     endfor
     if (match ge 0) then begin
       sf = strsplit(DWEL_headers.dwel_filtered_fix_info[match],'=',/extract)
@@ -1614,8 +1639,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
   pos_mask=0b
   
   DWEL_pointcloud_info=[DWEL_pointcloud_info,$
-    'DWEL_az_n='+strtrim(string(DWEL_az_n),2),$
-    'B_Thresh='+strtrim(string(b_thresh),2) $
+    'DWEL Azimuth North='+strtrim(string(DWEL_az_n),2),$
+    'B Thresh='+strtrim(string(b_thresh),2) $
     ]
     
   ; ***********************
@@ -1674,7 +1699,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
   ;***************
   ;now set up structures and push onto the stack
   
-  meta_data={ $
+  meta_data={pbmeta, $
     Processing_Date_Time:Processing_Date_Time,$
     Run_Number:Run_Number,$
     Description:Description,$
@@ -1760,7 +1785,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
     endelse
   endif
   
-  base_stats={ $
+  base_stats={pbstats, $
     infile:infile,$
     outfile:out_file,$
     oi_name:oi_name,$
@@ -1769,7 +1794,6 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
     zenith:zenith,$
     azimuth:azimuth,$
     cal_dat:cal_dat,$
-    
     DWEL_div:DWEL_div,$
     rpow:rpow,$
     Rtef:Rtef,$
@@ -1777,12 +1801,12 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, settings, err
     }
     
   pb_stats=ptr_new(base_stats,/no_copy)
-  pb_info=''
+  pb_info = ''
   
   ;Apply the point cloud processing
   ;********************************************
   perr=0b
-  apply_ptcl_filter_batch,p,pb_stats,pb_meta,pb_info,error=perr
+  dwel_apply_ptcl_filter,p,pb_stats,pb_meta,pb_info,error=perr
   ;********************************************
   
   if (perr ne 0b) then begin

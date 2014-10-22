@@ -650,11 +650,11 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   a_zen=strtrim(string(A_theta,format='(f12.4)'),2)
   a_azm=strtrim(string(A_phi,format='(f12.4)'),2)
   
-  DWEL_Andrieu_zenith=strtrim('zen=('+strcompress(strjoin(a_zen,',',/single),/remove_all)+')',2)
-  DWEL_Andrieu_azimuth=strtrim('azm=('+strcompress(strjoin(a_azm,',',/single),/remove_all)+')',2)
+  ;; DWEL_Andrieu_zenith=strtrim('zen=('+strcompress(strjoin(a_zen,',',/single),/remove_all)+')',2)
+  ;; DWEL_Andrieu_azimuth=strtrim('azm=('+strcompress(strjoin(a_azm,',',/single),/remove_all)+')',2)
   
-  a_zen=0b
-  a_azm=0b
+  ;; a_zen=0b
+  ;; a_azm=0b
   A_theta=0b
   A_phi=0b
   
@@ -836,8 +836,8 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   ;  print,'accum mean=',amean
   
   DWEL_projection_info=[DWEL_projection_info, $
-    'Stats_Format=(Min,Mean,Max,Stddev)', $
-    'accum_Stats=('+strtrim(string(amin),2)+',' $
+    'Stats Format=(Min,Mean,Max,Stddev)', $
+    'accum Stats=('+strtrim(string(amin),2)+',' $
     +strtrim(string(amean),2)+',' $
     +strtrim(string(amax),2)+',' $
     +strtrim(string(asdev),2)+')' $
@@ -848,7 +848,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   accum_r=((round(scaler*(accum_r-amin))>0L)<4095L)
   ;
   DWEL_projection_info=[DWEL_projection_info, $
-    'accum_r_Stats=('+strtrim(string(amin),2)+',' $
+    'accum_r Stats=('+strtrim(string(amin),2)+',' $
     +strtrim(string(amean),2)+',' $
     +strtrim(string(amax),2)+',' $
     +strtrim(string(asdev),2)+')' $
@@ -859,7 +859,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   accum_r2=((round(scaler*(accum_r2-amin))>0L)<4095L)
   ;
   DWEL_projection_info=[DWEL_projection_info, $
-    'accum_r2_Stats=('+strtrim(string(amin),2)+',' $
+    'accum_r2 Stats=('+strtrim(string(amin),2)+',' $
     +strtrim(string(amean),2)+',' $
     +strtrim(string(amax),2)+',' $
     +strtrim(string(asdev),2)+')' $
@@ -870,7 +870,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   star_r=((round(scaler*(star_r-amin))>0L)<4095L)
   ;
   DWEL_projection_info=[DWEL_projection_info, $
-    'star_r_Stats=('+strtrim(string(amin),2)+',' $
+    'star_r Stats=('+strtrim(string(amin),2)+',' $
     +strtrim(string(amean),2)+',' $
     +strtrim(string(amax),2)+',' $
     +strtrim(string(asdev),2)+')' $
@@ -881,7 +881,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   star_r2=((round(scaler*(star_r2-amin))>0L)<4095L)
   ;
   DWEL_projection_info=[DWEL_projection_info, $
-    'star_r2_Stats=('+strtrim(string(amin),2)+',' $
+    'star_r2 Stats=('+strtrim(string(amin),2)+',' $
     +strtrim(string(amean),2)+',' $
     +strtrim(string(amax),2)+',' $
     +strtrim(string(asdev),2)+')' $
@@ -897,8 +897,8 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   out_base=strtrim(strmid(DWEL_AT_File,last+1,strlen(DWEL_AT_File)-last-1),2)
   
   DWEL_projection_info=[DWEL_projection_info, $
-    'Input_File='+strtrim(f_base,2),$
-    'Output_projected_file='+strtrim(out_base,2)]
+    'Input File='+strtrim(f_base,2),$
+    'Output projected file='+strtrim(out_base,2)]
     
   bnames=band_name[band_pos]+'_'+ptype+'_Projected'
   
@@ -915,9 +915,9 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   envi_assign_header_value, fid=out_fid, keyword='DWEL_projection_info', $
     value=DWEL_projection_info
   envi_assign_header_value, fid=out_fid, keyword='DWEL_Andrieu_zenith', $
-    value=DWEL_Andrieu_zenith
+    value=a_zen, precision=3
   envi_assign_header_value, fid=out_fid, keyword='DWEL_Andrieu_azimuth', $
-    value=DWEL_Andrieu_azimuth
+    value=a_azm, precision=3
     
   envi_write_file_header, out_fid
   envi_file_mng,id=out_fid,/remove
@@ -981,9 +981,9 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_projection_info', $
     value=DWEL_projection_info
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Andrieu_zenith', $
-    value=DWEL_Andrieu_zenith
+    value=a_zen, precision=3
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Andrieu_azimuth', $
-    value=DWEL_Andrieu_azimuth
+    value=a_azm, precision=3
     
   envi_write_file_header, anc_fid
   envi_file_mng,id=anc_fid,/remove
