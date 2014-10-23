@@ -40,8 +40,8 @@
 ;-
 function dwel_general_filter, infile, p, mpos, outfile, ierr
   compile_opt idl2
-  envi, /restore_base_save_files
-  envi_batch_init, /no_status_window
+;  envi, /restore_base_save_files
+;  envi_batch_init, /no_status_window
   
   resolve_routine, 'DT2NB', /compile_full_file, /either
   resolve_routine, 'CMREPLICATE', /compile_full_file, /either

@@ -46,8 +46,8 @@ pro dwel_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_tweak, $
   ierr
 
   compile_opt idl2
-  envi, /restore_base_save_files
-  envi_batch_init, /no_status_window
+;  envi, /restore_base_save_files
+;  envi_batch_init, /no_status_window
 
   resolve_routine, 'DWEL_GENERAL_FILTER', /compile_full_file, /either
   resolve_routine, 'DWEL_FILTERED_FIXBASE_CMD_NSF', /compile_full_file, /either

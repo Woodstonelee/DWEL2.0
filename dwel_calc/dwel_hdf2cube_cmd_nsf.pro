@@ -246,8 +246,8 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
   ;;the CORRECT wavelength number.
     
   compile_opt idl2
-  envi, /restore_base_save_files
-  envi_batch_init, /no_status_window
+;  envi, /restore_base_save_files
+;  envi_batch_init, /no_status_window
 
   ;; explicitly ask IDL to compile the routines outside this script but called
   ;; here

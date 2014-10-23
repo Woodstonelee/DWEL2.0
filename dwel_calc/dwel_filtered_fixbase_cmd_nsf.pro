@@ -49,8 +49,8 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;; FilteredFile: the file name of the DWEL cube file that had been base and sat fixed and then filtered
   ;
   compile_opt idl2
-  envi, /restore_base_save_files
-  envi_batch_init, /no_status_window
+;  envi, /restore_base_save_files
+;  envi_batch_init, /no_status_window
   ;
 
   resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either

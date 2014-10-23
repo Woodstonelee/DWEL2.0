@@ -15,8 +15,8 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ; overlap: azimuth range of overlapping area, in unit of degree
     
   compile_opt idl2
-  envi, /restore_base_save_files
-  envi_batch_init, /no_status_window
+;  envi, /restore_base_save_files
+;  envi_batch_init, /no_status_window
 
   resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
   resolve_routine, 'DWEL_HEADER_PARSE', /compile_full_file, /either
