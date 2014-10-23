@@ -36,4 +36,6 @@
 #
 ####################################################################
 
+IDL_CPU_TPOOL_NTHREADS : 4
+IDL_EDIT_INPUT : False
 IDL_PATH : +./:<IDL_DEFAULT>
