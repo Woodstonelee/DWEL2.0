@@ -1255,7 +1255,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
 
   compile_opt idl2
   envi, /restore_base_save_files
-  envi_batch_init
+  envi_batch_init, /no_status_window
 
   resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
   resolve_routine, 'DWEL_ITPULSE_MODEL_DUAL_NSF', /compile_full_file, /either
