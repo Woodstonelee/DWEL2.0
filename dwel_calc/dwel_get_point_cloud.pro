@@ -1309,7 +1309,9 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     save_zero_hits=1 ; if 1, no-hits is recorded as a valid gap
     add_dwel=0       ; if 1, two points (0, 0, 0) and (0, 0, dwel_height) are
                      ; recorded in generated point cloud for reference. 
-    save_br=1b ; if 1, save images of b and r
+    save_br=0b       ; if 1, save images of b and r. they are really really
+                                ; large bc they are image of doulbe floating
+                                ; values. Only save them when debugging.
     save_pfilt=1b ; if 1, save pfilter image
     ;set a bounding box of limits for impossible or unnecessary points
     ;useful to remove impossible points
