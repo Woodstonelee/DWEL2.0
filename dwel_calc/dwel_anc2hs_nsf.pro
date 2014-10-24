@@ -14,8 +14,8 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
   resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either
   resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
-  resolve_routine, 'T_ANDRIEU_TP2XY', /compile_full_file, /either
-  resolve_routine, 'T_ANDRIEU_XY2TP', /compile_full_file, /either
+  resolve_routine, 'HS_TP2XY', /compile_full_file, /either
+  resolve_routine, 'HS_XY2TP', /compile_full_file, /either
   resolve_routine, 'CMREPLICATE', /compile_full_file, /either
 
   ;; get the size of input file to be processed. It will be used in later
