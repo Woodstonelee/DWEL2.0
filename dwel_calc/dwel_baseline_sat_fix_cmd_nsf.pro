@@ -430,7 +430,8 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
       d = double(reform(data[index,*]))
       data=0b
       n = long(n) + 1L
-      temp=total(d,1,/double)/double(count)
+      ; mean waveform of Lambertian target return
+      temp=total(d,1,/double)/double(count) 
       temp2=total(d[*,out_of_pulse:nb-1],/double)/(double(count)*double(nb-out_of_pulse))
       ;
       nt=n_elements(temp)
@@ -441,9 +442,10 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
         save[0,i]=float(i)
         save[1,i]=float(count)
         ;      save[2,i]=max(temp,mpos)-temp2
-        save[2,i]=tempmax-temp2
+        save[2,i]=tempmax-temp2 ; raw DN max subtracts mean base DN
         save[3,i]=float(mpos)
-        save[4,i]=float(temp2)
+        save[4,i]=float(temp2)  ; mean base DN from standard target (Lambertian
+                                ; panel) 
         save[5,i]=float(line_scale[i])
         save[6,i]=float(sqrt(total((temp-temp2)^2,/double)))
         ;      save[7,i]=(wl[1]-wl[0])*save[6,i]/(max(temp)-temp2)
@@ -471,6 +473,27 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     temp2=0b
   endfor
   
+  ;; ***************************************************************************
+  ;; calculate a scaling factor for each scan line to correct laser power
+  ;; variation. not using line_scale is because it is noisy. 
+  ;; first smooth the return intensities from standard target over scan lines
+  ;; with a median filter to remove any possible noise or deviant. 
+  medfwidth = 20 ; the window size of median filter
+  casingmax = reform(save[2, *])
+  padcasingmax = [(fltarr(medfwidth)+1.0)*median(casingmax[0:medfwidth-1]), $
+    casingmax, (fltarr(medfwidth)+1.0)*median(casingmax[nl-medfwidth:nl-1])]
+  medfcasingmax = median(padcasingmax, medfwidth, /even)
+  medfcasingmax = medfcasingmax[medfwidth:medfwidth+nl-1]
+  ;; get a scaling factor to normalize all casing return intensities to a
+  ;; targeted DN. 
+  medf_line_scale = target_dn / medfcasingmax
+  tmpind = where(save[2,*] eq 0, tmpnum)
+  if tmpnum gt 0 then begin
+    medf_line_scale[tmpind] = 0.0
+    medfcasingmax[tmpind] = 0.0
+  endif 
+  ;; ***************************************************************************
+
   ;make some space
   d=0b
   data=0b
@@ -599,7 +622,8 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     printf,ctfile,strtrim(outstring,2)
     outstring='Casing_fwhm='+strtrim(string(casing_fwhm,format='(f10.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    printf,ctfile,'Line_Num,Casing_Num,Casing_Max_Val,Casing_Max_Pos,Offset,Line_Scale,Casing_Power,Casing_FWHM'
+    ;; printf,ctfile,'Line_Num,Casing_Num,Casing_Max_Val,Casing_Max_Pos,Offset,Line_Scale,Casing_Power,Casing_FWHM'
+    printf,ctfile,'Line_Num,Casing_Num,Casing_Max_Val,Casing_Max_Pos,Offset,Line_Scale,Casing_Power,Casing_FWHM,Medf_Casing_Max_Val,Medf_Line_Scale'
     flush, ctfile
     ;
     for i=0L,nl-1L do begin
@@ -616,7 +640,9 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
         strtrim(string(save[4,i],format='(f10.3)'),2)+','+ $
         strtrim(string(save[5,i],format='(f10.3)'),2)+','+ $
         strtrim(string(save[6,i],format='(f10.3)'),2)+','+ $
-        strtrim(string(save[7,i],format='(f10.3)'),2)
+        strtrim(string(save[7,i],format='(f10.3)'),2)+','+ $
+        strtrim(string(medfcasingmax[i],format='(f10.3)'),2)+','+ $
+        strtrim(string(medf_line_scale[i],format='(f10.3)'),2)
       ;
       printf,ctfile,outstring
     endfor
@@ -922,7 +948,8 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     
     ;======================================================================
     temp=temp-transpose(baseline)##one_ns
-    temp=scale_mean*temp*(transpose(runin_mask)##one_ns)
+    ;; temp=scale_mean*temp*(transpose(runin_mask)##one_ns)
+    temp=medf_line_scale[i]*temp*(transpose(runin_mask)##one_ns)
     
     ;mask may have changed now
     pos_z=where(mask_all[*,i] eq 0,count_z)
