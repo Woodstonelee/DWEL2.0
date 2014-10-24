@@ -1,7 +1,7 @@
 ; Simple AT projection of unprocessed data cube.
 ; Arrange pixels in array of zenith and azimuth angle instead of shot number and scan number
 
-pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
+pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     output_resolution, zen_tweak, err, Overlap=overlap
   ; Max_Zenith_Angle: in unit of degree
   ; output_resolution: in unit of mrad
@@ -264,7 +264,7 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;now put the data on the heap with a pointer
   p_stat=ptr_new(sav,/no_copy)
   
-  status = DWEL_set_theta_phi_nsf(p_stat,zen_tweak)
+  status = dwel_set_theta_phi_nsf(p_stat,zen_tweak)
   
   ;put the results into the local arrays
   ShotZen=(*p_stat).ShotZen
@@ -476,12 +476,7 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   a_zen=strtrim(string(A_theta,format='(f12.4)'),2)
   a_azm=strtrim(string(A_phi,format='(f12.4)'),2)
-
-  ;; DWEL_Andrieu_zenith=strtrim('zen=('+strcompress(strjoin(a_zen,',',/single),/remove_all)+')',2)
-  ;; DWEL_Andrieu_azimuth=strtrim('azm=('+strcompress(strjoin(a_azm,',',/single),/remove_all)+')',2)
   
-  ;; a_zen=0b
-  ;; a_azm=0b
   A_theta=0b
   A_phi=0b
   
@@ -614,10 +609,6 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Anc2AT_info', $
     value=DWEL_Anc2AT_info
-  envi_assign_header_value, fid=anc_fid, keyword='DWEL_Andrieu_zenith', $
-    value=a_zen, precision=3
-  envi_assign_header_value, fid=anc_fid, keyword='DWEL_Andrieu_azimuth', $
-    value=a_azm, precision=3
     
   envi_write_file_header, anc_fid
   envi_file_mng,id=anc_fid,/remove

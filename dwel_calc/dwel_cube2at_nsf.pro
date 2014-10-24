@@ -21,6 +21,8 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
   resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either
   resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
+  resolve_routine, 'T_ANDRIEU_TP2XY', /compile_full_file, /either
+  resolve_routine, 'T_ANDRIEU_XY2TP', /compile_full_file, /either
   resolve_routine, 'CMREPLICATE', /compile_full_file, /either
 
   print, 'entering dwel_cube2at'
