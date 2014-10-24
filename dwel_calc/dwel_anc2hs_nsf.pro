@@ -1,7 +1,7 @@
 ; Simple AT projection of unprocessed data cube.
 ; Arrange pixels in array of zenith and azimuth angle instead of shot number and scan number
 
-pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
+pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_HS_File, Max_Zenith_Angle, $
     output_resolution, zen_tweak, err, Overlap=overlap
   ; Max_Zenith_Angle: in unit of degree
   ; output_resolution: in unit of mrad
@@ -253,7 +253,7 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;; print,'final sel=',sel
   ;; ;===========================================
   
-  ;set up a structure and push it onto the heap
+  ;set up a structure of encoder values and push it onto the heap
   sav={ $
     Nshots:nshots,$
     Nscans:nscans,$
@@ -356,31 +356,35 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   set_ifov:
   
   ifov_x=output_resolution
-  t_max=Max_Zenith_Angle*!pi/180.0
-  ptype='AT'
-  pname='Andrieu Transpose'
+  t_max=Max_Zenith_Angle*!dtor
+  ptype='HS'
+  pname='Hemispherical'
   
   print,'ifov_x=',ifov_x
   
-  ;now convert the data to (x,y) coordinates
-  
-  print, 'Andrieu_transpose'
-  status=t_Andrieu_tp2xy(nshots*nscans,ShotZen,ShotAzim,x_proj,y_proj)
+  ;; now convert the data to (x,y) coordinates
+  ;; (x,y) space in HS projection image is measured as fraction of zenith in pi/2
+  print, 'Hemispherical'
+  status=hs_tp2xy(nshots*nscans,ShotZen,ShotAzim,x_proj,y_proj)
   
   ShotZen=0b
   ShotAzim=0b
-  
+
   ;define image geometry - linear size is (2*k_inc+1) cells
-  
-  ;set output dimensions
-  ns_out=fix(r2mr*t_max/ifov_x)+1
-  nl_out=fix(r2mr*2.0*!pi/ifov_x)+1
-  
+  k_inc=fix(r2mr*t_max/ifov_x)
+  ;; r_max, radius of HS projection image in unit of fraction of pi/2
+  r_max=2.0*t_max/!pi
+
   ;set the step size in (x,y) space corresponding to the resolution
-  h=(t_max/float(ns_out))*!radeg
-  h21=1.1*(h/2.0)
-  h22=1.1*((!radeg*scan_step)/r2mr)/2.0
-  h2=max([h21,h22])
+  h=r_max/float(k_inc)
+
+  ;set output dimensions
+  ns_out=2*k_inc+1
+  nl_out=2*k_inc+1
+  ;; half of diagnal distance in a pixel 
+  h2=sqrt(2)*h/2.0
+  r_max2=r_max^2
+
   print, 'projection step size: ', h2
   
   counter=0L
@@ -405,20 +409,36 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;now loop over the cells and set up pointers to the original image cells
   ;involved in the output spatial cells
   for i=0, nl_out-1 do begin
-    y=float(i)*h
+    y=float(k_inc-i)*h
     y_min=y-h2
     y_max=y+h2
     pos_y=where(((y_proj ge y_min) and (y_proj le y_max) and Mask_all),count_y)
     
+    ;; mask out pixel outside hemispherical circle in the output image. 
+    if (count_y gt 0) then begin
+      pos=where((x_proj[pos_y]^2+y_proj[pos_y]^2) le r_max2,count)
+      if (count lt count_y) then begin
+        if (count gt 0) then begin
+          pos_y=pos_y[pos]
+          count_y=count
+        endif else begin
+          pos_y=-1
+          count_y=0
+        endelse
+      endif
+    endif
+
     if (count_y gt 0) then begin
       for j=0,ns_out-1 do begin
-        x=float(ns_out-1-j)*h
+        x=float(j-k_inc)*h
         ;get four corners of the pixel
         x_min=x-h2
         x_max=x+h2
         pos_x=where(x_proj[pos_y] ge x_min and x_proj[pos_y] le x_max,count_x)
         if(count_x gt 0) then begin
           num_val[j,i]=long(count_x)
+          ;; convert one-dimensional subscription to two-dimensional [col,row]
+          ;; in input scanning image. 
           temp=array_indices(a_ref,reform(pos_y[pos_x]),/dimensions)
           jj=size(temp,/dimensions)
           if (n_elements(jj) ne 2) then begin
@@ -430,11 +450,12 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
           endelse
           
           if (gotind) then begin
-            pos_ind=[[pos_ind],[temp]] ; pos_ind is n*3 array, n is the number
-          ; of shots in the line i of the projection,
-          ; first and second columns are the pixel
-          ; location in the original data cube, the third
-          ; column is the column j of the projection.
+            ; pos_ind is n*3 array, n is the number
+            ; of shots in the line i of the projection,
+            ; first and second columns are the pixel
+            ; location in the original data cube, the third
+            ; column is the column j of the projection.
+            pos_ind=[[pos_ind],[temp]] 
           endif else begin
             pos_ind=[[temp]]
             gotind=1b
@@ -445,22 +466,23 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
         endif else begin
           mask[j,i]=0L
         endelse
-        status=t_Andrieu_xy2tp(1,x,y,th,ph)
+        status=hs_xy2tp(1,x,y,th,ph)
         A_theta[j]=th
         A_phi[i]=ph
         theta[j,i]=round(angle_scale*th)
         phi[j,i]=round(angle_scale*ph)
       endfor
-      if (total(reform(num_val[*,i])) gt 0) then begin
-        temp=sort(reform(pos_ind[1,*])) ; sort the pos_ind by column, the shot number/zenith
+      if (total(reform(num_val[*,i])) gt 0) then begin $
+        temp=sort(reform(pos_ind[1,*])) ; sort the pos_ind by row index in input
+                                ; scanning image
         pos_ind=pos_ind[*,temp]
       endif
     endif else begin
       for j=0,ns_out-1 do begin
-        x=float(ns_out-1-j)*h
+        x=float(j-k_inc)*h
         num_val[j,i]=0L
         mask[j,i]=0L
-        status=t_Andrieu_xy2tp(1,x,y,th,ph)
+        status=hs_xy2tp(1,x,y,th,ph)
         A_theta[j]=th
         A_phi[i]=ph
         theta[j,i]=round(angle_scale*th)
@@ -486,8 +508,8 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     scaler=1.0d0
   endelse
   
-  DWEL_Anc2AT_info=[ $
-    'Program='+'dwel_anc2at_nsf, DWEL Ancillary to AT projection Qlook',$
+  DWEL_Anc2HS_info=[ $
+    'Program='+'dwel_anc2hs_nsf, DWEL Ancillary to Hemispherical projection Qlook',$
     'Processing Date Time='+strtrim(systime(),2),$
     'Projection type='+ptype,$
     'Projection name='+pname,$
@@ -502,7 +524,7 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     'Angular scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
     'Overlap azimuth (deg)='+strtrim(string(overlap, format='(f10.3)'), 2) $
     ]
-  DWEL_Anc2AT_info=strtrim(DWEL_Anc2AT_info,2)
+  DWEL_Anc2HS_info=strtrim(DWEL_Anc2HS_info,2)
   
   ;all ready to go ... so get output file name[s]
   output_envi:
@@ -511,7 +533,6 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   ;set up the arrays for data and output
   data = make_array(nshots,1,/double)
-  temp = make_array(nshots,1,/double)
   maxwf = make_array(ns_out, nl_out, /double)
   
   num_avg=make_array(ns_out,nl_out,/long)
@@ -532,7 +553,7 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
         lin=pos_ind[1,point]
         if (lin ne current) then begin
           data=0s
-          data = double(wfmax[*, lin])
+          data = double(wfmax[*, lin]) ; nshots-by-1
           ;count=count+1L
           current=lin
         endif
@@ -577,7 +598,7 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   ;now write out the extra information image
   ;; set up the file name of the extra information image
-  outextra=DWEL_AT_File
+  outextra=DWEL_HS_File
   ;Open output file
   text_err=0
   openw, ofile, outextra,/get_lun,error=text_err
@@ -607,8 +628,8 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;write out the previous header records
   status=DWEL_put_headers(anc_fid,DWEL_headers)
   
-  envi_assign_header_value, fid=anc_fid, keyword='DWEL_Anc2AT_info', $
-    value=DWEL_Anc2AT_info
+  envi_assign_header_value, fid=anc_fid, keyword='DWEL_Anc2HS_info', $
+    value=DWEL_Anc2HS_info
     
   envi_write_file_header, anc_fid
   envi_file_mng,id=anc_fid,/remove
@@ -616,11 +637,11 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   
   print,'Completed writing projected image - now for summary data'
   
-  print,'Output File: '+strtrim(DWEL_AT_File,2)
+  print,'Output File: '+strtrim(DWEL_HS_File,2)
   print,' '
-  print,'DWEL_Anc2AT_info written to Output File Headers:'
-  for index=0,n_elements(DWEL_Anc2AT_info)-1 do begin
-    print,strtrim(DWEL_Anc2AT_info[index],2)
+  print,'DWEL_Anc2HS_info written to Output File Headers:'
+  for index=0,n_elements(DWEL_Anc2HS_info)-1 do begin
+    print,strtrim(DWEL_Anc2HS_info[index],2)
   endfor
   print,' '
   print,'*************************************'
@@ -651,11 +672,11 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   endif
   p_list=0b
   
-  if (err gt 0) then print,'Error called from dwel_anc2at_nsf'
+  if (err gt 0) then print,'Error called from dwel_anc2hs_nsf'
 
   ;; write processing time summary
   print, '************************************'
-  print, 'Processing program = dwel_anc2at_nsf'
+  print, 'Processing program = dwel_anc2hs_nsf'
   print, 'Input DWEL ancillary file size = ' + $
     strtrim(string(double(procfilesize)/(1024.0*1024.0)), 2) + ' M'
   print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), $

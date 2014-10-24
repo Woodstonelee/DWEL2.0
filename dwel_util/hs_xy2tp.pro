@@ -1,4 +1,4 @@
-function xy2tp,nxy,x,y,theta,phi
+function hs_xy2tp,nxy,x,y,theta,phi
   compile_opt idl2
   
   ;this function returns the theta,phi coordinates
