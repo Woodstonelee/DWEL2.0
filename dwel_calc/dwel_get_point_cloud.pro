@@ -22,7 +22,6 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   ;set local parameters
   num_test=3
   test_num=20
-  r_thresh=0.175
   range_extent=5.0
   noise_hits=10
   
@@ -42,6 +41,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   DWEL_num=long((*pb_meta).run_number)
   threshold=(*pb_meta).threshold
   b_thresh=(*pb_meta).b_thresh
+  r_thresh=(*pb_meta).r_thresh ; 0.175
   wavelength=(*pb_meta).wavelength
   fneg=(*pb_meta).fneg
   h1=(*pb_meta).h1
@@ -1308,22 +1308,20 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     xmax:50.0, $
     ymin:-50.0, $
     ymax:50.0, $
-    sdevfac:2.0}
+    sdevfac:2.0, $
+    r_thresh:0.175}
   ;; tag names we need in settings
   setting_tag_names = tag_names(finalsettings)
-  ;; setting_tag_names = ['cal_dat', 'DWEL_az_n', 'runcode', 'save_zero_hits', $
-  ;;   'add_dwel', 'save_br', 'save_pfilt', 'zlow', 'zhigh', 'xmin', 'xmax', $
-  ;;   'ymin', 'ymax', 'sdevfac']
   if n_elements(settings) ne 0 or arg_present(settings) then begin
     ;; user supplied settings
     ;; go through user supplied settings and update the final settings. 
     numtags = n_tags(settings)
     tags = tag_names(settings)
-    for n=0, numtags do begin
+    for n=0, numtags-1 do begin
       tmpind = where(strmatch(setting_tag_names, tags[n], /fold_case) eq 1, $
         tmpnum) 
       if tmpnum eq 1 then begin
-        finalsetting.(tmpind) = settings.(n)
+        finalsettings.(tmpind) = settings.(n)
       endif else begin
         print, 'Tag name is invalid or ambiguous in given ' + $
           'settings. Default value will be used instead. '
@@ -1346,6 +1344,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ymin=finalsettings.ymin
   ymax=finalsettings.ymax
   sdevfac=finalsettings.sdevfac
+  r_thresh=finalsettings.r_thresh
   
   ;test a little
   
@@ -1668,6 +1667,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   b_thresh=sdevfac*(scale_mean*threshold)
   
   print,'b_thresh='+strtrim(string(b_thresh),2)
+  print, 'r_thresh=' + strtrim(string(r_thresh), 2)
   
   azimuth=azimuth-DWEL_az_n
   pos=where(azimuth lt 0.0,npos)
@@ -1760,6 +1760,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     Range_Step:Range_Step,$
     Threshold:Threshold,$
     b_thresh:b_thresh,$
+    r_thresh:r_thresh,$
     Fneg:fneg,$
     h1:h1,$
     h2:h2,$
