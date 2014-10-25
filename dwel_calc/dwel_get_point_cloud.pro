@@ -1280,48 +1280,72 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   err=0
   tfile=30
   dwel_pointcloud_info=['']
-  sdevfac=2.0                   ; how many times of standard deviation of noise
-                                ; to determine a threshold to filter out noise
-                                ; points. 
   
+  ;; set up a structure to store default settings and will be updated
+  ;; accordingly later. 
+  ;; runcode: set to a value to distinguish runs, be default it is set to the
+  ;; current Julian day*10.
+  ;; add_dwel: if 1, two points (0, 0, 0) and (0, 0, dwel_height) are recorded
+  ;; in generated point cloud for reference.
+  ;; save_br: if 1, save images of b and r. they are really really large bc they
+  ;; are image of doulbe floating values. Only save them when debugging.
+  ;; save_pfilt: if 1, save pfilter image
+  ;; zlow, zhigh, xmin, xmax, ymin, ymax: set a bounding box of limits for
+  ;; impossible or unnecessary points useful to remove impossible points
+  ;; sdevfac: how many times of standard deviation of noise to determine a
+  ;; threshold to filter out noise points.
+  finalsettings = { ptclsettings, $
+    cal_dat:0, $
+    DWEL_az_n:0, $
+    runcode:round(systime(/julian)*10), $
+    save_zero_hits:1, $
+    add_dwel:0, $
+    save_br:0, $
+    save_pfilt:1, $
+    zlow:-5.0, $
+    zhigh:50.0, $
+    xmin:-50.0, $
+    xmax:50.0, $
+    ymin:-50.0, $
+    ymax:50.0, $
+    sdevfac:2.0}
+  ;; tag names we need in settings
+  setting_tag_names = tag_names(finalsettings)
+  ;; setting_tag_names = ['cal_dat', 'DWEL_az_n', 'runcode', 'save_zero_hits', $
+  ;;   'add_dwel', 'save_br', 'save_pfilt', 'zlow', 'zhigh', 'xmin', 'xmax', $
+  ;;   'ymin', 'ymax', 'sdevfac']
   if n_elements(settings) ne 0 or arg_present(settings) then begin
-    ;; user supplies settings
-    cal_dat=settings.cal_dat
-    DWEL_az_n=settings.DWEL_az_n
-    runcode=settings.runcode
-    save_zero_hits=settings.save_zero_hits
-    add_dwel=settings.add_dwel
-    save_br=settings.save_br
-    save_pfilt=settings.save_pfilt
-    zlow=settings.zlow
-    zhigh=settings.zhigh
-    xmin=settings.xmin
-    xmax=settings.xmax
-    ymin=settings.ymin
-    ymax=settings.ymax
-  endif else begin
-    ;; no user settings, take default values
-    cal_dat=0b ;cal_dat=1b if you have calibration for the DWEL
-    DWEL_az_n=0 ; DWEL azimuth of true north
-    runcode=round(systime(/julian)*10) ; set to a value to distinguish runs, be
-                                ; default it is set to the current Julian
-                                ; day*10. 
-    save_zero_hits=1 ; if 1, no-hits is recorded as a valid gap
-    add_dwel=0       ; if 1, two points (0, 0, 0) and (0, 0, dwel_height) are
-                     ; recorded in generated point cloud for reference. 
-    save_br=0b       ; if 1, save images of b and r. they are really really
-                                ; large bc they are image of doulbe floating
-                                ; values. Only save them when debugging.
-    save_pfilt=1b ; if 1, save pfilter image
-    ;set a bounding box of limits for impossible or unnecessary points
-    ;useful to remove impossible points
-    zlow=-5.0 
-    zhigh=50.0
-    xmin=-50.0
-    xmax=50.0
-    ymin=-50.0
-    ymax=50.0
-  endelse 
+    ;; user supplied settings
+    ;; go through user supplied settings and update the final settings. 
+    numtags = n_tags(settings)
+    tags = tag_names(settings)
+    for n=0, numtags do begin
+      tmpind = where(strmatch(setting_tag_names, tags[n], /fold_case) eq 1, $
+        tmpnum) 
+      if tmpnum eq 1 then begin
+        finalsetting.(tmpind) = settings.(n)
+      endif else begin
+        print, 'Tag name is invalid or ambiguous in given ' + $
+          'settings. Default value will be used instead. '
+        print, 'Given tag name = ' + strtrim(tags[n], 2)
+      endelse 
+    endfor 
+  endif 
+
+  cal_dat=finalsettings.cal_dat
+  DWEL_az_n=finalsettings.DWEL_az_n
+  runcode=finalsettings.runcode
+  save_zero_hits=finalsettings.save_zero_hits
+  add_dwel=finalsettings.add_dwel
+  save_br=finalsettings.save_br
+  save_pfilt=finalsettings.save_pfilt
+  zlow=finalsettings.zlow
+  zhigh=finalsettings.zhigh
+  xmin=finalsettings.xmin
+  xmax=finalsettings.xmax
+  ymin=finalsettings.ymin
+  ymax=finalsettings.ymax
+  sdevfac=finalsettings.sdevfac
   
   ;test a little
   
@@ -1612,9 +1636,9 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     DWEL_cal=0b
   endelse
   
-  ;now read in the right threshold!
-  fac=1.0
-  
+  ;; now read in the right threshold from standard deviation of background noise
+  ;; base! 
+  ;;fac=1.0
   if (DWEL_headers.filtfix_present) then begin
     match = -1
     for i=0,n_elements(DWEL_headers.dwel_filtered_fix_info)-1 do begin
@@ -1625,9 +1649,23 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
       threshold = float(strtrim(sf[1],2))
       print,'threshold from headers='+strtrim(string(threshold),2)
     endif
+    match = -1
+    for i=0,n_elements(DWEL_headers.dwel_filtered_fix_info)-1 do begin
+      if (strmatch(DWEL_headers.dwel_filtered_fix_info[i],'*scale mean=*')) then match=i
+    endfor
+    if (match ge 0) then begin
+      sf = strsplit(DWEL_headers.dwel_filtered_fix_info[match],'=',/extract)
+      scale_mean = float(strtrim(sf[1],2))
+      print,'scale mean from headers='+strtrim(string(scale_mean),2)
+    endif
   endif
   
-  b_thresh=sdevfac*threshold
+  ;; b_thresh=sdevfac*threshold
+  ;; Because we have scaled waveforms in the filtered_fixbase processing
+  ;; procedure, the standard deviation of background base level needs to be
+  ;; scaled accordingly to reflect correct noise level and derive appropriate
+  ;; threshold here.
+  b_thresh=sdevfac*(scale_mean*threshold)
   
   print,'b_thresh='+strtrim(string(b_thresh),2)
   
