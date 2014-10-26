@@ -1,0 +1,50 @@
+Change logs of DWEL2.0 programs
+
+Old version: David Jupp's CSIRO DWEL programs as of September 2014
+
+Changes made by: Zhan Li, zhanli86@bu.edu
+
+Changes made as of 20141025
+
+--------------------------------------------------------------------------------
+
+Shift from Oz version to NSF version
+====================================
+- Change routine names, header information and related default parameters to NSF from Oz version. 
+
+dwel_anc2at
+===========
+- Add a keyword argument "Overlap" to the procedure. If users use this keyword argument and provide a number for degrees of azimuthal overlapping area in the output projection, the projection image will be made with such degrees of overlapping. If users do not use this keyword argument, the output image will have all overlapping area from the input scanning data cube. If user-defined overlapping area is larger than the actual overlap in the input data, only actual overlap will be projected and some information will be output to the IDL console during running. 
+- Add a record in the header file, "Overlap" to record the degrees of overlap area. 
+- Add a record in the header file, 'Angular scale' to record the scale factor of angles. 
+
+dwel_anc2at & dwel_cube2at
+==========================
+- Flip the direction of zenith dimension in the projection image. Now the equal-angle projection will give you the same look that you will see from the actual environment. 
+
+dwel_baseline_sat_fix_cmd
+=========================
+- Laser power variation correction. Use median filter on return intensities from lambertian target over scan lines. The window size of the median filter is decided as following. I checked Glenn's post about temperature variation on DWEL's google site, https://sites.google.com/a/bu.edu/dwel_lidar/optics/1064internaltemperatureincreasetrends. From the data of power/temp v.s. time collected by Glenn, at the beginning of a scan, even within 0.5 min, the temp and power could change significantly! If we choose 0.5 min, we have about 30 sec * 2000 pulses/sec / 3142 pulses/scan line (at 2mrad scanning resolution) = 19 scan lines. We could choose 20 scan lines as the window size of the median filter.
+
+dwel_get_point_cloud
+====================
+- Correct b_thresh in dwel_get_point_cloud. Because we have scaled waveforms in the dwel_filtered_fixbase_cmd processing procedure, the standard deviation of background base level needs to be scaled accordingly to reflect correct noise level and derive appropriate b_thresh here.
+- Add a keyword argument to take user defined settings. If users do not use this keyword argument, all settings will be set to default values now stored inside the script of this procedure. If users use this keyword but only provide several user-defined values, these values will be used and the rest values in the settings will be set default. 
+
+dwel_filtered_fixbase_cmd
+=========================
+- Change the output range because from NSF data I found the old range [-5.0, 95.0] is too large for a few waveforms to have enough samples. Now [-5.0, 93.5]. 
+
+New: dwel_anc2hs
+================
+- Add a new routine "dwel_anc2hs" based on old EVI routine to project ancillary file to hemispherical projection. 
+
+New: dwel_swop_pulse_xc
+=======================
+- Add a new routine to combine two steps: dwel_general_filter and dwel_filtered_fixbase_cmd. Now users don't have to worry about swopping pulse models. This new routine takes care of it. 
+
+Minor changes
+=============
+- Uniform the format of records in the header files. Now all DWEL records use space in record names. Before underscore and spacee were mixedly used. 
+- Change the band "mean" in the projection extrinfo image from mean of absolute to simple mean. 
+- Add more comments in several routines. Add documentation comments at the begining of a procedure in several scripts. Will add documentation scripts to all procedures later. 
