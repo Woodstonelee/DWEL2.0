@@ -16,6 +16,16 @@ A few minor Notes to David
 - The following lists some real changes to the processing but not minor changes on comments. 
 - About the changes involved with shift from Oz to NSF for our use here, you can simply search 'nsf' in a script and spot those changes. Supposedly you can replace all 'nsf' with 'oz'. 
 
+Processed file naming convention
+================================
+- HDF5 to ENVI cube: xx_cube.img, xx_cube_ancillary.img
+- baseline and saturation fix: xx_cube_bsfix.img, xx_cube_bsfix_ancillary.img
+- ancillary file to AT/HS projection: xx_[processing_stage_name]_ancillary_at[/hs]_project.img
+- dwel_general_filter, I prefer to call it pulse cross correlation to distinguish it from our saying of "pulse filtering" in the EVI program which actually filters out/remove noise waveform bins. xx_cube_bsfix_pulsexc.img
+- dwel_filtered_fixbase_cmd, xx_cube_bsfix_pulsexc_update.img
+- dwel_cube2at, xx_cube_bsfix_pulsexc_update_at_project.img, xx_cube_bsfix_pulsexc_update_at_project_extrainfo.img
+- point cloud generation: xx_cube_bsfix_pulsexc_update_at_project_ptcl_pcinfo.img, xx_cube_bsfix_pulsexc_update_at_project_ptcl_points.txt, xx_cube_bsfix_pulsexc_update_at_project_ptcl_pfilter.img
+
 Shift from Oz version to NSF version
 ====================================
 - Change routine names, header information and related default parameters to NSF from Oz version. The involved routines are list here. 
@@ -23,6 +33,10 @@ Shift from Oz version to NSF version
 - dwel_set_theta_phi_nsf.pro
 - dwel_pulse_model_dual_nsf.pro
 - dwel_itpulse_model_dual_nsf.pro 
+
+dwel2cube_cmd to dwel_hdf2cube_cmd
+==================================
+- This might sound crazy but I like the routine names in a similar or uniform fashion. I changed dwel2cube_cmd to dwel_hdf2cube_cmd. You can adopt it or ignore it. Just name changing. 
 
 dwel_anc2at
 ===========
