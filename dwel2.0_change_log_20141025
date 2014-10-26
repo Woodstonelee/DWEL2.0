@@ -8,9 +8,21 @@ Changes made as of 20141025
 
 --------------------------------------------------------------------------------
 
+A few minor Notes to David
+==========================
+- dwel2.0_idl.pre is just for me run programs in IDL terminal mode on linux. It adds all subdirectories of the code directory to IDL paths. 
+- dwel_jitter_fix folder contains all stuff for fixing jittering in our old data. You can ignore it. 
+- I reformatted all indentations in all files just for easy reading and comparison for myself. If the new format doesn't fit to your habit, just ignore them. 
+- The following lists some real changes to the processing but not minor changes on comments. 
+- About the changes involved with shift from Oz to NSF for our use here, you can simply search 'nsf' in a script and spot those changes. Supposedly you can replace all 'nsf' with 'oz'. 
+
 Shift from Oz version to NSF version
 ====================================
-- Change routine names, header information and related default parameters to NSF from Oz version. 
+- Change routine names, header information and related default parameters to NSF from Oz version. The involved routines are list here. 
+- All routines in the folder of dwel_calc.
+- dwel_set_theta_phi_nsf.pro
+- dwel_pulse_model_dual_nsf.pro
+- dwel_itpulse_model_dual_nsf.pro 
 
 dwel_anc2at
 ===========
@@ -21,6 +33,11 @@ dwel_anc2at
 dwel_anc2at & dwel_cube2at
 ==========================
 - Flip the direction of zenith dimension in the projection image. Now the equal-angle projection will give you the same look that you will see from the actual environment. 
+- Remove dwel_val_block. Those constant values are no long used in the routines. Instead IDL's own constant values are used including: !pi, !radeg, !dtor. 
+
+t_andrieu_tp2xy & t_andrieu_xy2tp
+=================================
+- Remove old constant value declaration because they are no long used in the routines. Instead IDL's own constant values are used including: !pi, !radeg, !dtor.
 
 dwel_baseline_sat_fix_cmd
 =========================
@@ -35,8 +52,8 @@ dwel_filtered_fixbase_cmd
 =========================
 - Change the output range because from NSF data I found the old range [-5.0, 95.0] is too large for a few waveforms to have enough samples. Now [-5.0, 93.5]. 
 
-New: dwel_anc2hs
-================
+New: dwel_anc2hs & hs_tp2xy & hs_xy2tp
+======================================
 - Add a new routine "dwel_anc2hs" based on old EVI routine to project ancillary file to hemispherical projection. 
 
 New: dwel_swop_pulse_xc
