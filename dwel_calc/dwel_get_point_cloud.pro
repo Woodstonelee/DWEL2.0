@@ -171,6 +171,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   printf,mfile,'Max_Zenith_Angle='+strtrim(string((*pb_meta).Max_Zenith_Angle,format='(f10.2)'),2)
   printf,mfile,'Range_Step(m)='+strtrim(string((*pb_meta).Range_Step,format='(f10.4)'),2)
   printf,mfile,'Threshold='+strtrim(string((*pb_meta).Threshold,format='(f10.4)'),2)
+  printf,mfile,'b_thresh='+strtrim(string((*pb_meta).b_thresh,format='(f10.4)'),2) 
+  printf,mfile,'r_thresh='+strtrim(string((*pb_meta).r_thresh,format='(f10.4)'),2)
   printf,mfile,'Fneg='+strtrim(string((*pb_meta).Fneg,format='(f10.4)'),2)
   printf,mfile,'h1='+strtrim(string((*pb_meta).h1,format='(i10)'),2)
   printf,mfile,'h2='+strtrim(string((*pb_meta).h2,format='(i10)'),2)

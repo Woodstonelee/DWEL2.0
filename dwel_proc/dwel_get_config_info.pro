@@ -29,12 +29,11 @@ function dwel_get_config_info,config_file,Config_Info,consum
     buf=strtrim(left,2)+'='+strtrim(right,2)
   endif
   npl=strpos(buf,'comment=')
-  if (npl gt -1) then begin
-    consum=strtrim(strcompress(strmid(buf,npl+8)),2)
-    if (nrec le 0) then con_entries=[buf] else con_entries=[con_entries,buf]
-    nrec=nrec+1
-  endif 
+  if (npl gt -1) then consum=strtrim(strcompress(strmid(buf,npl+8)),2)
+  if (nrec le 0) then con_entries=[buf] else con_entries=[con_entries,buf]
+  nrec=nrec+1
   goto,reading
+
   done:
   
   free_lun,inlun,/force
@@ -46,3 +45,4 @@ function dwel_get_config_info,config_file,Config_Info,consum
   ;
   return,0
 end
+
