@@ -233,7 +233,7 @@ function DataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
     
 end
 
-pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
+pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
     Wavelength_Label, DWEL_Height, beam_div, srate, err_flag, nadirshift=nadirelevshift
   ;;
   ;; Because the names of the waveform datasets in HDF5 files were
@@ -267,7 +267,17 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
   procfilesize = procfilesize.size
   ;; get the time now as the start of processing
   starttime = systime(1)
+  
+  ;; give a default scan encoder value of nadir shift here if you get one so
+  ;; that you don't have to put nadir shift in the command everytime
+  if n_elements(nadirelevshift) ne 0 or arg_present(k) then begin ; function
+  ; calling gives nadir shift value
+  
+  endif else begin ; nadir shift value is not given, use default values
     
+    nadirelevshift = 392433 ; 130289 ; this default value was from NSF DWEL 2014/05/03
+  endelse
+  
   DWEL_MetaInfo = CheckDWEL(DWEL_H5File,Wavelength,nadirelevshift,err)
   
   if (err ne 0) then begin
@@ -298,16 +308,6 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
   endif
   print,'consum=',consum
   
-  ;; give a default scan encoder value of nadir shift here if you get one so
-  ;; that you don't have to put nadir shift in the command everytime
-  if n_elements(nadirelevshift) ne 0 or arg_present(k) then begin ; function
-  ; calling gives nadir shift value
-  
-  endif else begin ; nadir shift value is not given, use default values
-    
-    nadirelevshift = 392433 ; 130289 ; this default value was from NSF DWEL 2014/05/03
-  endelse
-
   Name_Info=['Program=dwel2cube_cmd_nsf',$
     'Original DWEL HDF File='+strtrim(f_base,2)]
   Site_Info=[ $
