@@ -412,7 +412,7 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     
     if (count_y gt 0) then begin
       for j=0,ns_out-1 do begin
-        x=float(ns_out-1-j)*h
+        x=float(j)*h
         ;get four corners of the pixel
         x_min=x-h2
         x_max=x+h2
@@ -457,7 +457,7 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
       endif
     endif else begin
       for j=0,ns_out-1 do begin
-        x=float(ns_out-1-j)*h
+        x=float(j)*h
         num_val[j,i]=0L
         mask[j,i]=0L
         status=t_Andrieu_xy2tp(1,x,y,th,ph)
@@ -477,11 +477,11 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   a_zen=strtrim(string(A_theta,format='(f12.4)'),2)
   a_azm=strtrim(string(A_phi,format='(f12.4)'),2)
 
-  ;; DWEL_Andrieu_zenith=strtrim('zen=('+strcompress(strjoin(a_zen,',',/single),/remove_all)+')',2)
-  ;; DWEL_Andrieu_azimuth=strtrim('azm=('+strcompress(strjoin(a_azm,',',/single),/remove_all)+')',2)
+  DWEL_Andrieu_zenith=strtrim('zen=('+strcompress(strjoin(a_zen,',',/single),/remove_all)+')',2)
+  DWEL_Andrieu_azimuth=strtrim('azm=('+strcompress(strjoin(a_azm,',',/single),/remove_all)+')',2)
   
-  ;; a_zen=0b
-  ;; a_azm=0b
+  a_zen=0b
+  a_azm=0b
   A_theta=0b
   A_phi=0b
   
@@ -492,20 +492,20 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   endelse
   
   DWEL_Anc2AT_info=[ $
-    'Program='+'dwel_anc2at_nsf, DWEL Ancillary to AT projection Qlook',$
+    'Program='+'DWEL Ancillary to AT projection Qlook',$
     'Processing Date Time='+strtrim(systime(),2),$
     'Projection type='+ptype,$
     'Projection name='+pname,$
-    'Beam Divergence (mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
-    'Scan Step (mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
-    'Sampling Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
-    'output resolution (mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
-    'max zenith angle (deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
-    'Zen tweak (enc)='+strtrim(string(zen_tweak),2),$
+    'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
+    'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
+    'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
+    'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
+    'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
+    'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
     'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
     'Output scale='+strtrim(string(scaler,format='(f10.2)'),2), $
-    'Angular scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
-    'Overlap azimuth (deg)='+strtrim(string(overlap, format='(f10.3)'), 2) $
+    'Angular_scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
+    'Overlap_azimuth_(deg)='+strtrim(string(overlap, format='(f10.3)'), 2) $
     ]
   DWEL_Anc2AT_info=strtrim(DWEL_Anc2AT_info,2)
   
@@ -615,9 +615,9 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Anc2AT_info', $
     value=DWEL_Anc2AT_info
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Andrieu_zenith', $
-    value=a_zen, precision=3
+      value=DWEL_Andrieu_zenith
   envi_assign_header_value, fid=anc_fid, keyword='DWEL_Andrieu_azimuth', $
-    value=a_azm, precision=3
+      value=DWEL_Andrieu_azimuth
     
   envi_write_file_header, anc_fid
   envi_file_mng,id=anc_fid,/remove

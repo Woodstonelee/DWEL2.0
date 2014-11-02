@@ -509,20 +509,20 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_HS_File, Max_Zenith_Angle, $
   endelse
   
   DWEL_Anc2HS_info=[ $
-    'Program='+'dwel_anc2hs_nsf, DWEL Ancillary to Hemispherical projection Qlook',$
+    'Program='+'DWEL Ancillary to Hemispherical projection Qlook',$
     'Processing Date Time='+strtrim(systime(),2),$
     'Projection type='+ptype,$
     'Projection name='+pname,$
-    'Beam Divergence (mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
-    'Scan Step (mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
-    'Sampling Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
-    'output resolution (mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
-    'max zenith angle (deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
-    'Zen tweak (enc)='+strtrim(string(zen_tweak),2),$
+    'Beam_Divergence_(mrad)='+strtrim(string(beam_div,format='(f14.3)'),2),$
+    'Scan_Step_(mrad)='+strtrim(string(scan_step,format='(f14.3)'),2),$
+    'Sampling_Ratio='+strtrim(string(sampling_ratio,format='(f14.3)'),2),$
+    'output_resolution_(mrad)='+strtrim(string(ifov_x,format='(f10.2)'),2),$
+    'max_zenith_angle_(deg)='+strtrim(string(!radeg*t_max,format='(f10.2)'),2),$
+    'Zen_tweak_(enc)='+strtrim(string(zen_tweak),2),$
     'Mean image scale='+strtrim(string(scale,format='(f10.2)'),2),$
     'Output scale='+strtrim(string(scaler,format='(f10.2)'),2), $
-    'Angular scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
-    'Overlap azimuth (deg)='+strtrim(string(overlap, format='(f10.3)'), 2) $
+    'Angular_scale='+strtrim(string(angle_scale,format='(f10.2)'),2), $
+    'Overlap_azimuth_(deg)='+strtrim(string(overlap, format='(f10.3)'), 2) $
     ]
   DWEL_Anc2HS_info=strtrim(DWEL_Anc2HS_info,2)
   

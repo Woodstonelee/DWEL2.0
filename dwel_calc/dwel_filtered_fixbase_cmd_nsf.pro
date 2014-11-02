@@ -778,20 +778,20 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
     'Comment=Tzero is the time at which the peak of the output iterated pulse occurs',$
     'Tzero='+strtrim(string(Tzero,format='(f10.3)'),2),$
     'srate='+strtrim(string(srate,format='(f10.2)'),2),$
-    'out of pulse='+strtrim(string(out_of_pulse,format='(i10)'),2),$
-    'Target DN='+strtrim(string(target_dn,format='(f10.2)'),2),$
-    'scale mean='+strtrim(string(scale_mean,format='(f10.3)'),2),$
-    'Noise RMS='+strtrim(string(mean_base_sig,format='(f10.3)'),2),$
+    'out_of_pulse='+strtrim(string(out_of_pulse,format='(i10)'),2),$
+    'Target_DN='+strtrim(string(target_dn,format='(f10.2)'),2),$
+    'scale_mean='+strtrim(string(scale_mean,format='(f10.3)'),2),$
+    'Noise_RMS='+strtrim(string(mean_base_sig,format='(f10.3)'),2),$
     'Low(deg)='+strtrim(string(low,format='(f10.2)'),2),$
     'High(deg)='+strtrim(string(high,format='(f10.2)'),2),$
     'delta(ns)='+strtrim(string(delta,format='(f10.4)'),2),$
-    'casing max='+strtrim(string(CasingMeanWfMax,format='(f10.3)'),2),$
-    'casing sig='+strtrim(string(CasingMeanSig,format='(f10.3)'),2),$
-    'Casing CV(%)='+strtrim(string(CasingMeanCV,format='(f10.2)'),2),$
-    'casing fwhm(nsec)='+strtrim(string(casing_fwhm,format='(f10.4)'),2),$
-    'casing fwhm(m)='+strtrim(string(casing_fwhm*c2,format='(f10.4)'),2),$
-    'model fwhm(nsec)='+strtrim(string(model_fwhm,format='(f10.4)'),2),$
-    'model fwhm(m)='+strtrim(string(model_fwhm*c2,format='(f10.4)'),2) $
+    'casing_max='+strtrim(string(CasingMeanWfMax,format='(f10.3)'),2),$
+    'casing_sig='+strtrim(string(CasingMeanSig,format='(f10.3)'),2),$
+    'Casing_CV(%)='+strtrim(string(CasingMeanCV,format='(f10.2)'),2),$
+    'casing_fwhm(nsec)='+strtrim(string(casing_fwhm,format='(f10.4)'),2),$
+    'casing_fwhm(m)='+strtrim(string(casing_fwhm*c2,format='(f10.4)'),2),$
+    'model_fwhm(nsec)='+strtrim(string(model_fwhm,format='(f10.4)'),2),$
+    'model_fwhm(m)='+strtrim(string(model_fwhm*c2,format='(f10.4)'),2) $
     ]
   DWEL_filtered_fix_info=strtrim(DWEL_filtered_fix_info,2)
   
@@ -886,32 +886,32 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;; waveform within output range) might not be equal to nb_resamp (number of
   ;; bins in an expected output waveform)
   
-  ;; first set up an empirical output range. 
-  outrangemin = -6.0
-  outrangemax = 95.0
-  ;; check this output range against possible range of wl_out
-  if outrangemin lt min(wl_out) then begin
-    outrangemin = min(wl_out)
-  endif 
-  if outrangemax gt max(wl_out) then begin
-    outrangemax = max(wl_out)
-  endif 
-  ;; take the Tzero variance into account
-  outrangemin = outrangemin + 1.0
-  outrangemax = outrangemax - 1.0
-  ;; after we got a range from a test scan, fix the output range here but do
-  ;; some checks and give warnings (or no warning, the following processing will
-  ;; throw errors and stop)
-  if (outrangemin - 1.0) gt -5.0 then begin
-    print, 'WARNING: possible minimum range is larger than the given one!'
-    print, 'Possible minimum range = ' + strtrim(string(outrangemin - 1.0), 2)
-    print, 'Given minimum range = -5.0'
-  endif 
-  if (outrangemax + 1.0) lt 93.5 then begin
-    print, 'WARNING: possible maximum range is smaller than the given one!'
-    print, 'Possible maximum range = ' + strtrim(string(outrangemax + 1.0), 2)
-    print, 'Given maximum range = 93.5'
-  endif 
+  ;; ;; first set up an empirical output range. 
+  ;; outrangemin = -6.0
+  ;; outrangemax = 95.0
+  ;; ;; check this output range against possible range of wl_out
+  ;; if outrangemin lt min(wl_out) then begin
+  ;;   outrangemin = min(wl_out)
+  ;; endif 
+  ;; if outrangemax gt max(wl_out) then begin
+  ;;   outrangemax = max(wl_out)
+  ;; endif 
+  ;; ;; take the Tzero variance into account
+  ;; outrangemin = outrangemin + 1.0
+  ;; outrangemax = outrangemax - 1.0
+  ;; ;; after we got a range from a test scan, fix the output range here but do
+  ;; ;; some checks and give warnings (or no warning, the following processing will
+  ;; ;; throw errors and stop)
+  ;; if (outrangemin - 1.0) gt -5.0 then begin
+  ;;   print, 'WARNING: possible minimum range is larger than the given one!'
+  ;;   print, 'Possible minimum range = ' + strtrim(string(outrangemin - 1.0), 2)
+  ;;   print, 'Given minimum range = -5.0'
+  ;; endif 
+  ;; if (outrangemax + 1.0) lt 93.5 then begin
+  ;;   print, 'WARNING: possible maximum range is smaller than the given one!'
+  ;;   print, 'Possible maximum range = ' + strtrim(string(outrangemax + 1.0), 2)
+  ;;   print, 'Given maximum range = 93.5'
+  ;; endif 
   outrangemin = -5.0
   outrangemax = 93.5
   print, 'Output range (meter) = [' + strtrim(string(outrangemin), 2) + ', ' + $

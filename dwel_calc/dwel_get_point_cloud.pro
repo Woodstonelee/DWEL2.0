@@ -34,6 +34,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   ymax=(*pb_meta).ymax
   save_br=(*pb_meta).save_br
   save_pfilt=(*pb_meta).save_pfilt
+  DWEL_AppRefl=(*pb_meta).DWEL_AppRefl
   
   if (save_br) then ovdebug=1b else ovdebug=0b
   
@@ -68,6 +69,18 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get number of bytes in input file data
   nbytes=dt2nb(dt)
+
+  if (save_br or save_pfilt) then begin
+    f_base=file_basename(infile)
+  ;set up a base structure for the DWEL headers
+    DWEL_headers={ $
+         f_base:f_base $
+       }
+  ;find all of the DWEL headers in the hdr file as defined by FID
+    status=dwel_get_headers(fid,DWEL_headers)
+  endif
+
+  ;now remove the fid
   envi_file_mng,id=fid,/remove
   
   ;now set up the point and metadata files
@@ -165,7 +178,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   printf,mfile,'Ancillary_Path='+strtrim((*pb_meta).Ancillary_Path,2)
   printf,mfile,'Ancillary_File='+strtrim((*pb_meta).Ancillary_File,2)
   printf,mfile,'Projection='+strtrim((*pb_meta).Projection,2)
-  printf,mfile,'DWEL_Calibration='+strtrim(string((*pb_meta).DWEL_Calibration),2)
+  printf,mfile,'DWEL_AppRefl='+strtrim(string((*pb_meta).DWEL_AppRefl),2)
   printf,mfile,'DWEL_Height(m)='+strtrim(string((*pb_meta).DWEL_Height,format='(f10.2)'),2)
   printf,mfile,'DWEL_Az_North='+strtrim(string((*pb_meta).DWEL_Az_North,format='(f10.2)'),2)
   printf,mfile,'Max_Zenith_Angle='+strtrim(string((*pb_meta).Max_Zenith_Angle,format='(f10.2)'),2)
@@ -893,23 +906,35 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           nump_new=0
           goto,nohits
         endif
+        d0_out=reform(d_out[0:nump_new-1])
         d0sum=0.0
         for k=0,nump_new-1 do begin
-          d0sum=d0sum+float(d_out[k])
+          d0sum=d0sum+float(d0_out[k])
         endfor
+        rg=reform(rg[0:nump_new-1])
         ;
         ;Now calibrate the d values and get the ls_res (residual of LS) if required
-        if ((*pb_stats).cal_dat) then begin
-          eff=DWEL_eff_nu((*pb_stats).DWEL_div,rg,(*pb_stats).Rtef)
-          temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/eff
-          if (n_elements(temp) ne n_elements(d_out)) then begin
+        if ((*pb_stats).cal_dat and ~DWEL_AppRefl) then begin
+          eff=DWEL_eff_oz(wavelength,rg)
+          temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/(eff*(*pb_stats).DWEL_cal)
+          if ((n_elements(temp) ne n_elements(d_out)) or $
+              (n_elements(temp) ne n_elements(rg))) then begin
             print,'Bad error! temp and d_out do NOT conform!'
             print,'number of elements in temp=',n_elements(temp)
             print,'number of elements in d_out=',n_elements(d_out)
+            print,'number of elements in rg=',n_elements(rg)
           endif
           d_out=temp
           temp=0b
           if (ovdebug and saving) then begin
+            printf,tempfile,''
+            printf,tempfile,'eff'
+            buf=strtrim(string(eff),2)
+            buf=strtrim(strjoin(buf,' '),2)
+            printf,tempfile,buf
+            buf=''
+            flush,tempfile 
+;            printf,tempfile,''
             printf,tempfile,'d_out'
             buf=strtrim(string(d_out),2)
             buf=strtrim(strjoin(buf,' '),2)
@@ -922,12 +947,16 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         ;
         rsum=0.0
         vsum=0.0
+        r0sum=0.0
+        v0sum=0.0
         for k=0,nump_new-1 do begin
           rsum=rsum+rg[k]*float(d_out[k])
           vsum=vsum+float(d_out[k])
+          r0sum=r0sum+rg[k]*float(d0_out[k])
+          v0sum=v0sum+float(d0_out[k])
         endfor
         ;
-        if ((*pb_stats).cal_dat and ((vsum le -0.0001) or (vsum ge 1.5))) then begin
+        if ((*pb_stats).cal_dat and ((vsum le -0.01) or (vsum ge 2.5))) then begin
           oi_accum[j,i]=0l
           sum_accum[j,i]=0.0
           range_mean[j,i]=0.0
@@ -950,7 +979,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           i2_accum[j,i]=float(bsum)
           d0_accum[j,i]=float(d0sum)
           d_accum[j,i]=float(vsum)
-          range_mean[j,i]=rsum/vsum
+          range_mean[j,i]=r0sum/v0sum
           first_hit[j,i]=float(rg[0])
           last_hit[j,i]=float(rg[nump_new-1])
           gaps[j,i]=0b
@@ -1056,11 +1085,21 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       xstart=0,ystart=0,$
       data_type=4, interleave=1, $
       descrip=b_descrip, wl=wl, bnames=bnames,/write
+      envi_open_file,b_file,r_fid=fid,/no_interactive_query,/no_realize
+      ;write out the previous header records
+      status=dwel_put_headers(fid,DWEL_headers)
+      envi_file_mng,id=fid,/remove
+;
     r_descrip='R_image for '+strtrim(descrip,2)
     envi_setup_head,fname=r_file,ns=nsamples,nl=nlines,nb=nbands,$
       xstart=0,ystart=0,$
       data_type=4, interleave=1, $
       descrip=r_descrip, wl=wl, bnames=bnames,/write
+    envi_open_file,r_file,r_fid=fid,/no_interactive_query,/no_realize
+    ;write out the previous header records
+    status=dwel_put_headers(fid,DWEL_headers)
+    envi_file_mng,id=fid,/remove
+;
   endif
   if (save_pfilt) then begin
     free_lun,pfile,/force
@@ -1069,6 +1108,12 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       xstart=0,ystart=0,$
       data_type=dt, interleave=1, $
       descrip=p_descrip, wl=wl, bnames=bnames,/write
+      envi_open_file,pfilt_file,r_fid=fid,/no_interactive_query,/no_realize
+      ;write out the previous header records
+      status=dwel_put_headers(fid,DWEL_headers)
+      envi_file_mng,id=fid,/remove
+;
+
   endif
   if (ovdebug) then begin
     if (iprint le 0) then begin
@@ -1093,8 +1138,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   print,'mean corrected intensity=',emean
   
   pb_info=[$
-    'Stats Format=(Min,Mean,Max,Stddev)',$
-    'd Stats=('+strtrim(string(emin),2)+',' $
+    'Stats_Format=(Min,Mean,Max,Stddev)',$
+    'd_Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1106,7 +1151,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   print,'mean corrected uncalibrated intensity=',emean
   
   pb_info=[pb_info,$
-    'd0 Stats=('+strtrim(string(emin),2)+',' $
+    'd0_Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1118,7 +1163,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   print,'mean I sum=',emean
   
   pb_info=[pb_info,$
-    'I Stats=('+strtrim(string(emin),2)+',' $
+    'I_Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1130,7 +1175,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   print,'mean I2 sum=',emean
   
   pb_info=[pb_info,$
-    'I2 Stats=('+strtrim(string(emin),2)+',' $
+    'I2_Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1141,7 +1186,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   print,'mean Range=',emean
   
   pb_info=[pb_info,$
-    'Range Stats=('+strtrim(string(emin),2)+',' $
+    'Range_Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1153,7 +1198,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   print,'mean Residual=',emean
   
   pb_info=[pb_info,$
-    'Residual Stats=('+strtrim(string(emin),2)+',' $
+    'Residual_Stats=('+strtrim(string(emin),2)+',' $
     +strtrim(string(emean),2)+',' $
     +strtrim(string(emax),2)+',' $
     +strtrim(string(esdev),2)+')' $
@@ -1222,13 +1267,13 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   flush,mfile
   
-  perc_hit=round(100.0*float((*pb_meta).Shot_Hit_Number)/float((*pb_meta).Total_Hit_Number))
-  
+  perc_hit=(100.0*float((*pb_meta).Shot_Hit_Number)/float((*pb_meta).Total_Hit_Number))
+
   pb_info=[pb_info,$
     'Rmax='+strtrim(string(rmax,format='(f10.3)'),2),$
-    'Percent hits='+strtrim(string(perc_hit,format='(f10.3)'),2),$
-    'Theory Ratio='+strtrim(string(ratio_th,format='(f10.4)'),2),$
-    'Estimated Ratio='+strtrim(string(ratio_est,format='(f10.4)'),2) $
+    'Percent_hits='+strtrim(string(perc_hit,format='(f10.3)'),2),$
+    'Theory_Ratio='+strtrim(string(ratio_th,format='(f10.4)'),2),$
+    'Estimated_Ratio='+strtrim(string(ratio_est,format='(f10.4)'),2) $
     ]
     
   print,'Point Cloud Case Finished - clean up'
@@ -1450,7 +1495,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     projected = 1b
     match = -1
     for i=0,n_elements(DWEL_headers.DWEL_projection_info)-1 do begin
-      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*Projection type*')) then match=i
+      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*Projection_type*')) then match=i
     endfor
     if (match ge 0) then begin
       sf = strsplit(DWEL_headers.DWEL_projection_info[match],'=',/extract)
@@ -1463,7 +1508,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   if (projected) then begin
     match = -1
     for i=0,n_elements(DWEL_headers.DWEL_projection_info)-1 do begin
-      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*max zenith angle*')) then match=i
+      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*max_zenith_angle*')) then match=i
     endfor
     if (match ge 0) then begin
       sf = strsplit(DWEL_headers.DWEL_projection_info[match],'=',/extract)
@@ -1496,22 +1541,6 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   
   print,'Beam Divergence='+strtrim(string(DWEL_div),2)
   
-  ;the calibration is now known for 2006 and 2009 but others
-  ;are interpolated or extrapolated
-  if (DWEL_year le 2006) then begin
-    cal=270948.2
-    rpow = 2.1543
-    Rtef = 8.7148
-  endif else if (DWEL_year ge 2009) then begin
-    cal=273504.1
-    rpow = 2.2651
-    Rtef = 8.6975
-  endif else begin
-    cal=282696.2
-    rpow = 2.2464
-    Rtef = 8.7158
-  endelse
-  
   info=DWEL_headers.dwel_adaptation
   
   wavelength=1548
@@ -1536,24 +1565,31 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   
   print,'wavelength='+strtrim(string(wavelength),2)
   
-  DWEL_pointcloud_info=[DWEL_pointcloud_info,$
-    'DWEL beam wavelength='+strtrim(string(wavelength,format='(i10)'),2),$
-    'DWEL beam divergence='+strtrim(string(DWEL_div,format='(f10.3)'),2),$
-    'DWEL calibration Const='+strtrim(string(cal,format='(f10.3)'),2),$
-    'DWEL calibration range power='+strtrim(string(rpow,format='(f10.3)'),2),$
-    'DWEL calibration Teff='+strtrim(string(Rtef,format='(f10.3)'),2) $
-    ]
+  ;the calibration is now known for 2006 and 2009 but others
+  ;are interpolated or extrapolated
+  if (wavelength eq 1064) then begin
+    DWEL_cal=2052936.584
+    rpow = 1.906181253
+  endif else begin
+    DWEL_cal=712237.051
+    rpow = 1.906181253
+  endelse
     
   ;set up the calibration as far as possible
   if (cal_dat) then begin
     s_Factor=1.0
     i_scale=1000.0
-    DWEL_cal=1b
   endif else begin
     s_Factor=1.0
     i_scale=1.0
-    DWEL_cal=0b
   endelse
+
+  DWEL_pointcloud_info=[DWEL_pointcloud_info,$
+    'DWEL beam wavelength='+strtrim(string(wavelength,format='(i10)'),2),$
+    'DWEL beam divergence='+strtrim(string(DWEL_div,format='(f10.3)'),2),$
+    'DWEL calibration Const='+strtrim(string(dwel_cal,format='(f10.3)'),2),$
+    'DWEL calibration range power='+strtrim(string(rpow,format='(f10.3)'),2) $
+    ]
   
   mask=bytarr(nsamples,nlines)
   zenith=fltarr(nsamples,nlines)
@@ -1630,20 +1666,19 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   if (app_refl) then begin
     threshold=0.005
     i_scale=1000.0
-    DWEL_cal=1b
+    DWEL_AppRefl=1b
   endif else begin
     threshold=9.5
-    i_scale=1.0
-    DWEL_cal=0b
+    DWEL_AppRefl=0b
   endelse
   
   ;; now read in the right threshold from standard deviation of background noise
   ;; base! 
-  ;;fac=1.0
+  fac=1.0
   if (DWEL_headers.filtfix_present) then begin
     match = -1
     for i=0,n_elements(DWEL_headers.dwel_filtered_fix_info)-1 do begin
-      if (strmatch(DWEL_headers.dwel_filtered_fix_info[i],'*Noise RMS=*')) then match=i
+      if (strmatch(DWEL_headers.dwel_filtered_fix_info[i],'*Noise_RMS=*')) then match=i
     endfor
     if (match ge 0) then begin
       sf = strsplit(DWEL_headers.dwel_filtered_fix_info[match],'=',/extract)
@@ -1652,7 +1687,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     endif
     match = -1
     for i=0,n_elements(DWEL_headers.dwel_filtered_fix_info)-1 do begin
-      if (strmatch(DWEL_headers.dwel_filtered_fix_info[i],'*scale mean=*')) then match=i
+      if (strmatch(DWEL_headers.dwel_filtered_fix_info[i],'*scale_mean=*')) then match=i
     endfor
     if (match ge 0) then begin
       sf = strsplit(DWEL_headers.dwel_filtered_fix_info[match],'=',/extract)
@@ -1680,13 +1715,13 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     mask[pos]=0b
   endif
   pos=0b
-  pos_mask=where(Mask,num_mask)
+  pos_mask=where(Mask ne 0b,num_mask)
   max_zenith=max(zenith[pos_mask])
   pos_mask=0b
   
   DWEL_pointcloud_info=[DWEL_pointcloud_info,$
-    'DWEL Azimuth North='+strtrim(string(DWEL_az_n),2),$
-    'B Thresh='+strtrim(string(b_thresh),2) $
+    'DWEL_az_n='+strtrim(string(DWEL_az_n),2),$
+    'B_Thresh='+strtrim(string(b_thresh),2) $
     ]
     
   ; ***********************
@@ -1711,7 +1746,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   Ancillary_Path=anc_path
   Ancillary_File=anc_base
   Projection=Projection_Type
-  DWEL_Calibration=DWEL_cal
+  DWEL_AppRefl=DWEL_AppRefl
   DWEL_Height=DWEL_Height
   DWEL_Az_North=DWEL_az_n
   Max_Zenith_Angle=Max_Zenith
@@ -1755,7 +1790,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     Ancillary_Path:Ancillary_Path,$
     Ancillary_File:Ancillary_File,$
     Projection:Projection,$
-    DWEL_Calibration:DWEL_Calibration,$
+    DWEL_AppRefl:DWEL_AppRefl,$
     DWEL_Height:DWEL_Height,$
     DWEL_Az_North:DWEL_Az_North,$
     Max_Zenith_Angle:Max_Zenith_Angle,$
@@ -1842,8 +1877,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     azimuth:azimuth,$
     cal_dat:cal_dat,$
     DWEL_div:DWEL_div,$
+    Dwel_cal:Dwel_cal,$
     rpow:rpow,$
-    Rtef:Rtef,$
     s_Factor:s_Factor $
     }
     

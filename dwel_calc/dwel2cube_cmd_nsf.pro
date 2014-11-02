@@ -308,7 +308,7 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
     nadirelevshift = 392433 ; 130289 ; this default value was from NSF DWEL 2014/05/03
   endelse
 
-  Name_Info=['Program=dwel_hdf52cube_cmd_nsf, import DWEL HDF5 file to ENVI cube image',$
+  Name_Info=['Program=dwel2cube_cmd_nsf',$
     'Original DWEL HDF File='+strtrim(f_base,2)]
   Site_Info=[ $
     'Scan Description='+strtrim('DWEL_nsf Scan: '+strtrim(consum,2),2),$
@@ -396,12 +396,12 @@ pro dwel_hdf2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, 
   envi_file_mng, id=out_fid,/remove
   envi_file_mng, id=anc_fid,/remove
   free_lun,inlun,/force
-  if (err_flag ne 0) then print,'Returning with error from dwel2cube_cmd'
+  if (err_flag ne 0) then print,'Returning with error from dwel2cube_cmd_nsf'
   heap_gc,/verbose
   
   ;; write processing time summary
   print, '******************************************'
-  print, 'Processing program = dwel_hdf2cube_cmd_nsf'
+  print, 'Processing program = dwel2cube_cmd_nsf'
   print, 'Input HDF5 file size = ' + $
     strtrim(string(double(procfilesize)/(1024.0*1024.0*1024.0)), 2) + ' G'
   print, 'Processing time = ' + strtrim(string((systime(1) - starttime)), 2) + ' ' + $
