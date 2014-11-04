@@ -1,7 +1,14 @@
 function dwel_set_theta_phi_nsf, pstat,zen_tweak
   compile_opt idl2
   
-  zenith_count = 392433L + long(zen_tweak) ; 130289L+long(zen_tweak) ; from NSF DWEL 2014/05/03
+  resolve_routine, 'TAG_EXIST', /compile_full_file, /either
+
+  ;; see if the user has provided a scan encoder of zenith point
+  if tag_exist((*pstat), 'ZenEnc') then begin
+    zenith_count = (*pstat).ZenEnc + long(zen_tweak)
+  endif else begin
+    zenith_count = 392433L + long(zen_tweak) ; 130289L+long(zen_tweak) ; from NSF DWEL 2014/05/03
+  endelse 
   
   ShotZen=fltarr((*pstat).NShots,(*pstat).Nscans)
   ShotAzim=fltarr((*pstat).Nshots,(*pstat).Nscans)

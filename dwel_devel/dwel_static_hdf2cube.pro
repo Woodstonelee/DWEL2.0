@@ -1,6 +1,6 @@
 ;+
 ; NAME:
-;DWEL_STATIONARY2CUBE
+;DWEL_STATIC_HDF2CUBE
 ;
 ;
 ; PURPOSE:
@@ -96,7 +96,7 @@ function CheckStatDWEL, DWEL_H5File, Wavelength, nsample, err
   H5_CLOSE  ; This is the crucial step - release all of HDF5's memory
 
   ;; fabricate all ancillary information for a fake data cube
-  nadirelevshift = 0
+  nadirelevshift = 262144L
   TotalNoScans = fix(numwfs/nsample) + 1
   NoShotsPerScan = nsample
   shotstart = 0
@@ -257,7 +257,7 @@ function FakeDataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
     
 end
 
-pro dwel_stationary2cube, instathdf5file, outcubefile, wavelength, $
+pro dwel_static_hdf2cube, instathdf5file, outcubefile, wavelength, $
   wavelength_label, DWEL_Height, beam_div, srate, nsample=nsample
 
   compile_opt idl2
