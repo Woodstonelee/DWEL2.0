@@ -193,8 +193,6 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   pulse_width_range = 40.0 ; in unit of ns
   ;saturation test value in DN
   sat_test=1023L
-  ;; move leftward from out_of_pulse to find peak of wire signal
-  bins_toward_wire = 20 ; in unit of bins
   ;============================================
   
   ;; get the size of input file to be processed. It will be used in later
@@ -410,9 +408,12 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
 
   if (wavelength eq 1064) then begin
     target_dn=512.0
+    ;; move leftward from out_of_pulse to find peak of wire signal
+    bins_toward_wire = 57 ; in unit of bins
   endif else begin
     target_dn=509.0
-    out_of_pulse = 370
+    ;; move leftward from out_of_pulse to find peak of wire signal
+    bins_toward_wire = 80 ; in unit of bins
   endelse 
   
   ;close up the envi files
@@ -503,7 +504,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   ;
   for i=0L,nl-1L do begin
     satmask=bytarr(ns)
-    ;; it's a fake data cube from statiionary scan, use all waveforms in
+    ;; it's a fake data cube from stationary scan, use all waveforms in
     ;; a scan line. 
     index=where((mask_all[*,i] ne 0), count)
     if (count gt 0L) then begin
@@ -599,7 +600,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   ;mu and sig are length the number of bands
   ;; now the pulse and sig includes signals of all targets, not just the wire
   mean_base = median(pulse[out_of_pulse:nb-1], /double, /even)
-  mean_base_sig = median(pulse[out_of_pulse:nb-1], /double, /even)
+  mean_base_sig = median(sig[out_of_pulse:nb-1], /double, /even)
   ;; mean_base=total(pulse[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
   ;; mean_base_sig=total(sig[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
   cv_base=100.0*mean_base_sig/mean_base
@@ -687,6 +688,11 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
       scale_mean=1.0
       scale_cv=0.0
     endelse
+    ;; for stationary scan, do NOT scale so that we can trace back the real DN
+    ;; for calibration estimate
+    scale_mean = 1.0
+    scale_cv = 0.0
+
     printf,ctfile,'Stats,Mean,CV(%)'
     outstring='Base_Stats='+strtrim(string(mean_base,format='(f10.3)'),2)+','+ $
       strtrim(string(cv_base,format='(f10.2)'),2)
@@ -942,25 +948,25 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   runin_mask[shotend:shottz]=merge
   runin_mask[shottz+1:nb_out-1]=1.0
 
-  ;; if a target range is provided, it is interpreted as the maximum possible
-  ;; range of the targe in the static scan. 
-  ;; suppress all waveform bins after this range to zeros to avoid complications
-  ;;in later processing caused by noise. 
-  if n_elements(target_range) ne 0 or arg_present(target_range) then begin
-    target_time = Tzero + double(target_range)/c2
-    target_end = fix((target_time + pulse_width_range)/time_step)
-    target_halfend = fix((target_time + pulse_width_range/2.0)/time_step)
-    runin_mask[target_end+1:nb_out-1] = 0.0
-    numpos=indgen(target_end-target_halfend+1) + target_halfend
-    ord=float(numpos-target_halfend)/float(target_end-target_halfend)
-    merge = ((1.0-ord)^2)*(1.0+2.0*ord)
-    runin_mask[target_halfend:target_end] = merge
-    target_start = fix((target_time - pulse_width_range)/time_step)
-    wire_end = fix((Tzero + pulse_width_range)/time_step)
-    if wire_end+1 le target_start-1 then begin
-      runin_mask[wire_end+1:target_start-1] = 0.0
-    endif 
-  endif 
+  ;; ;; if a target range is provided, it is interpreted as the maximum possible
+  ;; ;; range of the targe in the static scan. 
+  ;; ;; suppress all waveform bins after this range to zeros to avoid complications
+  ;; ;;in later processing caused by noise. 
+  ;; if n_elements(target_range) ne 0 or arg_present(target_range) then begin
+  ;;   target_time = Tzero + double(target_range)/c2
+  ;;   target_end = fix((target_time + pulse_width_range)/time_step)
+  ;;   target_halfend = fix((target_time + pulse_width_range/2.0)/time_step)
+  ;;   runin_mask[target_end+1:nb_out-1] = 0.0
+  ;;   numpos=indgen(target_end-target_halfend+1) + target_halfend
+  ;;   ord=float(numpos-target_halfend)/float(target_end-target_halfend)
+  ;;   merge = ((1.0-ord)^2)*(1.0+2.0*ord)
+  ;;   runin_mask[target_halfend:target_end] = merge
+  ;;   target_start = fix((target_time - pulse_width_range)/time_step)
+  ;;   wire_end = fix((Tzero + pulse_width_range)/time_step)
+  ;;   if wire_end+1 le target_start-1 then begin
+  ;;     runin_mask[wire_end+1:target_start-1] = 0.0
+  ;;   endif 
+  ;; endif 
 
   ;  help,runin_mask
   ;  mean_image=fltarr(ns_out,nl_out)
@@ -1040,6 +1046,9 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
       totbad=0L
       for si=0,count_sat-1 do begin
         unsattemp=reform(temp[sat_pos[si], *])
+        ;; record the Tzero pulse from the wire
+        ;; find the wire signal maximum
+        wirewf = unsattemp
         satflag = apply_sat_fix_nsf(reform(temp[sat_pos[si], *]), pulse_model, i_val, satfixedwf=unsattemp)
         if (satflag lt 2) then sat_mask[sat_pos[si],i]=1
         if (satflag le 0) then begin
@@ -1050,6 +1059,17 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
           ;          print, 'line=', i, ', sample=', sat_pos[si]
           continue
         endif else begin
+          ;; if the substitute section by sat fix overlap with wire pulse, then
+          ;; paste the wire signal back
+          tmpmax = max(unsattemp, tmpind)
+          if (tmpind - i_val[2] + i_val[1] - 1) le out_of_pulse then begin
+            wiremax = max(wirewf[before_casing:out_of_pulse-bins_toward_wire], $
+              wiremaxind)
+            wiremaxind = wiremaxind + before_casing
+            unsattemp[wiremaxind-i_val[2]+i_val[1]:wiremaxind-i_val[2]+i_val[5]] $
+              = unsattemp[wiremaxind-i_val[2]+i_val[1]:wiremaxind-i_val[2]+i_val[5]] $
+              + pulse_model[i_val[1]:i_val[5]]*wiremax
+          endif 
           satfixeddata[sat_pos[si], *] = unsattemp
         endelse
         unsattemp=0b

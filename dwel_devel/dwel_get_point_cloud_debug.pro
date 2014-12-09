@@ -1,5 +1,5 @@
 ;======================================================================
-pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error 
+pro dwel_apply_ptcl_filter_debug, p, pb_stats, pb_meta, pb_info, error=error 
 
   compile_opt idl2
 
@@ -43,6 +43,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   threshold=(*pb_meta).threshold
   b_thresh=(*pb_meta).b_thresh
   r_thresh=(*pb_meta).r_thresh ; 0.175
+  sieve_thresh=(*pb_meta).sieve_thresh
   wavelength=(*pb_meta).wavelength
   fneg=(*pb_meta).fneg
   h1=(*pb_meta).h1
@@ -185,6 +186,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   printf,mfile,'Range_Step(m)='+strtrim(string((*pb_meta).Range_Step,format='(f10.4)'),2)
   printf,mfile,'Threshold='+strtrim(string((*pb_meta).Threshold,format='(f10.4)'),2)
   printf,mfile,'b_thresh='+strtrim(string((*pb_meta).b_thresh,format='(f10.4)'),2) 
+  printf,mfile,'sieve_thresh='+strtrim(string((*pb_meta).sieve_thresh,format='(f10.4)'),2)
   printf,mfile,'r_thresh='+strtrim(string((*pb_meta).r_thresh,format='(f10.4)'),2)
   printf,mfile,'Fneg='+strtrim(string((*pb_meta).Fneg,format='(f10.4)'),2)
   printf,mfile,'h1='+strtrim(string((*pb_meta).h1,format='(i10)'),2)
@@ -602,7 +604,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   nump_new=0
   ; Loop through each line, calculate B and apply filter.
   ; Write to output file.
-  for i=0,nlines-1 do begin
+  for i=0,nlines-1 do begin 
     ;    inline = envi_get_slice(fid=fid, /bil, pos=pos, line=i, xs=0, xe=nsamples-1)
     pointsz=long64(i)*long64(bufrs)
     inline=read_binary(inlun,data_start=pointsz,data_dims=[nsamples,nbands],data_type=dt)
@@ -614,7 +616,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       P_Mat=make_array(nsamples,nbands,type=dt)
     endif
     ;now go over the BIL slice for each sample and find points
-    for j=0, nsamples-1 do begin
+   for j=0, nsamples-1 do begin 
       b=fltarr(nbands)
       db=fltarr(nbands)
       d2b=fltarr(nbands)
@@ -707,7 +709,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           kk=0
           peaks_out=peaks
           if (nump_new eq 1) then small_thresh=cvthresh*b[peaks[0]] else small_thresh=cvthresh*max(b[peaks])
-          small_thresh=max([small_thresh,b_thresh])
+          small_thresh=max([small_thresh,sieve_thresh])
           for k=0,nump_new-1 do begin
             score=0
             rkv=(*pb_stats).range[peaks[k]]
@@ -1299,7 +1301,7 @@ end
 ;======================================================================
 ;; settings is a structure variable containing all setting for point cloud
 ;; generation. 
-pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
+pro dwel_get_point_cloud_debug, infile, ancfile, outfile, err, Settings=settings
 
   compile_opt idl2
 ;  envi, /restore_base_save_files
@@ -1357,7 +1359,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     ymin:-50.0, $
     ymax:50.0, $
     sdevfac:2.0, $
-    r_thresh:0.175}
+    r_thresh:0.175, $
+    sievefac:10.0}
   ;; tag names we need in settings
   setting_tag_names = tag_names(finalsettings)
   if n_elements(settings) ne 0 or arg_present(settings) then begin
@@ -1393,6 +1396,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ymax=finalsettings.ymax
   sdevfac=finalsettings.sdevfac
   r_thresh=finalsettings.r_thresh
+  sievefac=finalsettings.sievefac
   
   ;test a little
   
@@ -1703,9 +1707,12 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;; scaled accordingly to reflect correct noise level and derive appropriate
   ;; threshold here.
   b_thresh=sdevfac*(scale_mean*threshold)
+
+  sieve_thresh = sievefac*(scale_mean*threshold)
   
   print,'b_thresh='+strtrim(string(b_thresh),2)
   print, 'r_thresh=' + strtrim(string(r_thresh), 2)
+  print, 'sieve_thresh=' + strtrim(string(sieve_thresh), 2)
   
   azimuth=azimuth-DWEL_az_n
   pos=where(azimuth lt 0.0,npos)
@@ -1799,6 +1806,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     Threshold:Threshold,$
     b_thresh:b_thresh,$
     r_thresh:r_thresh,$
+    sieve_thresh:sieve_thresh,$
     Fneg:fneg,$
     h1:h1,$
     h2:h2,$
@@ -1889,7 +1897,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;Apply the point cloud processing
   ;********************************************
   perr=0b
-  dwel_apply_ptcl_filter,p,pb_stats,pb_meta,pb_info,error=perr
+  dwel_apply_ptcl_filter_debug,p,pb_stats,pb_meta,pb_info,error=perr
   ;********************************************
   
   if (perr ne 0b) then begin

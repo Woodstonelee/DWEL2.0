@@ -1,16 +1,17 @@
 ;
 ;+
 ; NAME:
-;DWEL_FILTERED_FIXBASE_CMD_NSF
+;DWEL_STATIC_WIRE_FILTERED_FIXBASE_CMD_NSF
 ;
 ; PURPOSE:
+;This is to process a fake data cube made from stationary scan. 
 ;Baseline re-fix (and ancillary file update) for pre-filtered DWEL data.
 ;
 ; CATEGORY:
 ;DWEL waveform processing.
 ;
 ; CALLING SEQUENCE:
-;dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_info_stats, zen_tweak, err
+;dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_info_stats, zen_tweak, err
 ;
 ; INPUTS:
 ;FilteredFile = the file name of the DWEL cube file that had been base and sat
@@ -43,8 +44,8 @@
 ;David Jupp, Sept 2014 - Created this routine. 
 ;Zhan Li, Oct 2014 - Added documentation comments.
 ;-
-pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
-  get_info_stats, zen_tweak, err
+pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
+  get_info_stats, zen_tweak, err, target_range=target_range
 
   ;; FilteredFile: the file name of the DWEL cube file that had been base and sat fixed and then filtered
   ;
@@ -52,6 +53,13 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
 ;  envi, /restore_base_save_files
 ;  envi_batch_init, /no_status_window
   ;
+
+  print, '************************************************************'
+  print, 'The minimum range of stationary scans this processing, '
+  print, 'dwel_static_wire_filtered_fixbase_cmd_nsf can accept = 5.0 m'
+  print, 'If your stationary scan is from a closer target, '
+  print, 'the processing may give unexpected results'
+  print, '************************************************************'
 
   resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either
   resolve_routine, 'DWEL_ITPULSE_MODEL_DUAL_NSF', /compile_full_file, /either
@@ -78,24 +86,32 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   before_casing=0
   check=0b
   if (check) then begin
-    out_of_pulse=200
+    out_of_pulse=200 ; in unit of bins
   endif else begin
-    out_of_pulse=400
+    out_of_pulse=400 ; in unit of bins
   endelse
   target_dn=512.0
   err=0
   err_flag=0b
   
+  ;; a file to record interpolated range and intensity of wire signal (Tzero) of
+  ;;all waveforms.
+  wfile = 60
+  wirelog_file=''
+  
+  ;; ===========================================================================
+  ;; some internal parameters
   ;; distance from casing (edge of casing) to the true Tzero position
   casing2Tzero = 0.065 ; unit: meters
   ;; the FWHM of outgoing pulse, ns
   outgoing_fwhm = 5.1
   ;; the full width of outgoing pulse where intensity is below 0.01 of
   ;;maximum
-  pulse_width_range = 40.0
+  pulse_width_range = 40.0 ; in unit of ns
   print,'pulse_width_range=',pulse_width_range
   ;saturation test
   sat_test=1023L
+  ;; ===========================================================================
   
   ;clean up any fids which are no longer where they were!
   ;ENVI issue that is annoying and leads to confusion
@@ -331,10 +347,30 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
       wavelength = 1548
     endif
   endelse
+  ;; find the scan encoder of zenith point
+  for i=0, n_elements(info)-1 do begin
+    if (strmatch(info[i], '*Scan encoder of zenith point*', /fold_case)) then $
+      match = i
+  endfor
+  if match ge 0 then begin
+    text=strtrim(info[match],2)
+    print,'text=',text
+    k=strpos(text,'=')
+    print,'extract=',strtrim(strmid(text,k+1),2)
+    zenithenc=fix(strtrim(strmid(text,k+1),2), type=3)
+  endif else begin
+    zenithenc = 0L
+  endelse
   
   if (wavelength eq 1064) then begin
     target_dn=512.0
-  endif else target_dn=509.0
+    ;; move leftward from out_of_pulse to find peak of wire signal
+    bins_toward_wire = 57 ; in unit of bins
+  endif else begin
+    target_dn=509.0
+    ;; move leftward from out_of_pulse to find peak of wire signal
+    bins_toward_wire = 80 ; in unit of bins
+  endelse 
   
   ;input some planes of data from the ancillary file
   anc_data=lonarr(ns,nl,9)
@@ -372,7 +408,8 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
     Nshots:ns,$
     Nscans:nl,$
     ShotZen:scan_encoder,$
-    ShotAzim:rotary_encoder $
+    ShotAzim:rotary_encoder, $
+    ZenEnc:zenithenc $
     }
     
   ;now put the data on the heap with a pointer
@@ -430,19 +467,29 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;
   for i=0L,nl-1L do begin
     satmask=long(reform(anc_data[*,i,0]))
-    index=where((mask_all[*,i] ne 0) and ((zeniths[*,i] ge low) and (zeniths[*,i] le high)) $
-      and (satmask ne 1L), count)
+    ;;  it's a fake data cube from stationary scan, use all waveforms in
+    ;;  a scan line. 
+    index=where((mask_all[*,i] ne 0) and (satmask ne 1L), count)
     if (count gt 0L) then begin
-      ;      data = envi_get_slice(fid=infile_fid, line=i, /bil)
       pointsz=long64(i)*long64(bufrs)
       data=read_binary(inlun,data_start=pointsz,data_dims=[ns,nb],data_type=type)
-      d = double(reform(data[index,*]))
+      d = double((data[index,*]))
       data=0b
-      temp=total(d,1,/double)/double(count)
-      temp2=total(d[*,out_of_pulse:nb-1],/double)/(double(count)*double(nb-out_of_pulse))
+      ;; median waveform of this 'scan line'
+      ;; due to severe noise in waveforms, median has been proved to be more
+      ;; stable than simple mean
+      temp = median(d, dimension=1, /even)
+      ;; temp=total(d,1,/double)/double(count)
+      ;; median of waveform bins after the wire signal, it can give us the noise
+      ;;base level. 
+      tmpmedian = median(d[*, out_of_pulse:nb-1], dimension=2, /even)
+      ;; mean of medians of waveforms in this scan line, as the mean base of
+      ;;this scan line. 
+      temp2 = mean(tmpmedian, /double)
+      ;; temp2=total(d[*,out_of_pulse:nb-1],/double)/(double(count)*double(nb-out_of_pulse))
       ;
       nt=n_elements(temp)
-      store=reform(temp[before_casing:nt-1])
+      store=reform(temp[before_casing:out_of_pulse-bins_toward_wire])
       tempmax=max(store,nct)
       ; interpolate peak location
       istat = peak_int([float(nct-1), float(nct), float(nct+1)], store[[nct-1, nct, nct+1]], tzero_loc, value, offset)
@@ -463,11 +510,11 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
         save[7,i]=(wl[1]-wl[0])*save[6,i]/save[2,i]
         save[8,i]=t_zerol[i]
       endif
-      if ((i gt 50L) and (i lt nl-9L)) then begin
+;;      if ((i gt 50L) and (i lt nl-9L)) then begin
         n = long(n) + 1L
         sum = sum + temp
         sum2 = sum2 + total(d^2, 1,/double)/double(count)
-      endif
+;;      endif
     endif else begin
       line_scale[i]=0.0
       t_zerol[i]=0.0
@@ -505,8 +552,10 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   d=0b
   
   ;pulse and sig are length the number of bands
-  mean_base=total(pulse[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
-  mean_base_sig=total(sig[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
+  mean_base = median(pulse[out_of_pulse:nb-1],/double, /even)
+  mean_base_sig = median(sig[out_of_pulse:nb-1],/double, /even)
+  ;; mean_base=total(pulse[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
+  ;; mean_base_sig=total(sig[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
   if (abs(mean_base) lt 1.0e-3) then cv_base=0.0 else cv_base=100.0*mean_base_sig/mean_base
   
   pulse=pulse-mean_base
@@ -593,6 +642,11 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
       scale_mean=1.0
       scale_cv=0.0
     endelse
+    ;; for stationary scans, do NOT scale so that we can trace the DN for
+    ;; calibration estimate
+    scale_mean = 1.0
+    scale_cv = 0.0
+
     printf,ctfile,'Stats,Mean,CV(%)'
     outstring='Base_Stats='+strtrim(string(mean_base,format='(f10.3)'),2)+','+ $
       strtrim(string(cv_base,format='(f10.2)'),2)
@@ -642,25 +696,25 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;  p_time = time
   ;  pulse = sum / double(n)
   ;  sig = sqrt((sum2 / double(n) - pulse^2)*double(n)/double(n-1))
-  CasingMeanWfMax = max(reform(pulse[before_casing:n_elements(pulse)-1]), nct)
+  CasingMeanWfMax = max(reform(pulse[before_casing:out_of_pulse-bins_toward_wire]), nct)
   Tzero_I=before_casing+nct
   print, 'Initial Tzero before baseline fix = ', time[Tzero_I], ' ns'
   tlow=time[Tzero_I] - 1.5*pulse_width_range
   thigh=time[Tzero_I] + 1.5*pulse_width_range
   print,'tlow,thigh=',tlow,thigh
   baseline = dblarr(nb)
-  tmpind = where(time lt tlow, count)
-  if count gt 0 then begin
-    baseline[tmpind] = pulse[tmpind]
-  endif
-  tmpind = where(time gt thigh, count)
-  if count gt 0 then begin
-    baseline[tmpind] = pulse[tmpind]
-  endif
-  tmpind=where((time ge tlow) and (time le thigh),count)
-  if (count gt 0) then begin
-    baseline[tmpind]=0.0
-  endif
+  ;; tmpind = where(time lt tlow, count)
+  ;; if count gt 0 then begin
+  ;;   baseline[tmpind] = pulse[tmpind]
+  ;; endif
+  ;; tmpind = where(time gt thigh, count)
+  ;; if count gt 0 then begin
+  ;;   baseline[tmpind] = pulse[tmpind]
+  ;; endif
+  ;; tmpind=where((time ge tlow) and (time le thigh),count)
+  ;; if (count gt 0) then begin
+  ;;   baseline[tmpind]=0.0
+  ;; endif
   
   pulse = pulse - baseline
   
@@ -668,13 +722,22 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   CasingMeanSig=sig[Tzero_I]
   CasingMeanCV=100.0*CasingMeanSig/CasingMeanWfMax
   
-  casing_power=total(reform(pulse[tmpind]),/double)
-  tmpmax = max(pulse, Tzero_I)
-  if (abs(casing_power) lt 1.0e-6) then casing_fwhm=0.0 else $
-    casing_fwhm=(wl[1]-wl[0])*casing_power/max(pulse)
+  if (out_of_pulse-bins_toward_wire-Tzero_I)*time_step lt thigh then begin
+    thigh = (out_of_pulse-bins_toward_wire-Tzero_I)*time_step
+  endif 
+  tmpind = where((time ge tlow) and (time le thigh), count)
+  if count gt 0 then begin
+    casing_power=total(reform(pulse[tmpind]),/double)
+    tmpmax = max(pulse[tmpind], Tzero_I)
+    if (abs(casing_power) lt 1.0e-6) then casing_fwhm=0.0 else $
+      casing_fwhm=(wl[1]-wl[0])*casing_power/tmpmax
+    Tzero=time[Tzero_I]
+    print,'Initial Tzero after baseline fix = ',Tzero,' ns'
+  endif else begin
+    casing_power = 0.0
+    casing_fwhm = 0.0
+  endelse 
   tmpind=0b
-  Tzero=time[Tzero_I]
-  print,'Initial Tzero after baseline fix = ',Tzero,' ns'
   
   ;; interpolate peak location
   istat = peak_int(time[[Tzero_I-1, Tzero_I, Tzero_I+1]], pulse[[Tzero_I-1, Tzero_I, Tzero_I+1]], time_int, pulse_int, offset)
@@ -696,11 +759,11 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;now correct the line based estimates as well
   t_zerol=t_zerol+delta
   
-  av_tzero=mean(t_zerol[50:nl-11])
-  print,'Average Tzero of each scan line = '+strtrim(string(av_tzero),2)+' ns'
+  ;; av_tzero=mean(t_zerol[50:nl-11])
+  ;; print,'Average Tzero of each scan line = '+strtrim(string(av_tzero),2)+' ns'
   
-  t_zerol[0:49]=av_tzero
-  t_zerol[nl-10:nl-1]=av_tzero
+  ;; t_zerol[0:49]=av_tzero
+  ;; t_zerol[nl-10:nl-1]=av_tzero
   
   time=time-Tzero
   
@@ -857,6 +920,28 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;  help,runin_mask
   ;  mean_image=fltarr(ns_out,nl_out)
   ;  max_image=fltarr(ns_out,nl_out)
+
+  runin_mask=fltarr(nb_out)+1.0
+  ;; if a target range is provided, it is interpreted as the maximum possible
+  ;; range of the targe in the static scan. 
+  ;; suppress all waveform bins after this range to zeros to avoid complications
+  ;;in later processing caused by noise. 
+  if n_elements(target_range) ne 0 or arg_present(target_range) then begin
+    target_time = Tzero + double(target_range)/c2
+    target_end = fix((target_time + pulse_width_range)/time_step)
+    target_halfend = fix((target_time + pulse_width_range/2.0)/time_step)
+    runin_mask[target_end+1:nb_out-1] = 0.0
+    numpos=indgen(target_end-target_halfend+1) + target_halfend
+    ord=float(numpos-target_halfend)/float(target_end-target_halfend)
+    merge = ((1.0-ord)^2)*(1.0+2.0*ord)
+    runin_mask[target_halfend:target_end] = merge
+    target_start = fix((target_time - pulse_width_range)/time_step)
+    wire_end = fix((Tzero + pulse_width_range)/time_step)
+    if wire_end+1 le target_start-1 then begin
+      runin_mask[wire_end+1:target_start-1] = 0.0
+    endif 
+  endif 
+
   ;==========================================
   mean_image=fltarr(ns_out,nl_out)
   max_image=fltarr(ns_out,nl_out)
@@ -935,6 +1020,52 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;set up the pointer to read the input file again
   bufrs=long(nbytes)*long(nb_out)*long(ns_out)
   pointsz=long64(0)
+
+  ;; see if we need to write out wire signal for log information
+  if get_info_stats then begin
+    n_base=strlen(OutUpdatedFile)
+    n_dot=strpos(OutUpdatedFile,'.',/reverse_search)
+    ;
+    if((n_dot le 0) or (n_base-n_dot ne 4)) then begin
+      wirelog_file=strtrim(OutUpdatedFile,2)+'_filtfix_wire.log'
+    endif else begin
+      wirelog_file=strmid(strtrim(OutUpdatedFile,2),0,n_dot)+'_filtfix_wire.log'
+    endelse
+    print,'wire signal log file name=',wirelog_file
+    ;  clog_file=o_path+path_sep()+clog_file
+    ;see if the log file exists & remove if it does!
+    if(file_test(wirelog_file)) then begin
+      fids=envi_get_file_ids()
+      if(fids[0] eq -1) then begin
+      
+      endif else begin
+        for i=0,n_elements(fids)-1 do begin
+          envi_file_query,fids[i],fname=tname
+          if (strlowcase(strtrim(strlowcase(wirelog_file),2)) eq $
+            strlowcase(strtrim(strlowcase(tname),2))) then begin
+            envi_file_mng,id=fids[i],/remove
+          endif
+        endfor
+        
+      endelse
+    endif
+    ;Open wire signal log file
+    text_err=0
+    openw, wfile, wirelog_file,/get_lun,error=text_err
+    if (text_err ne 0) then begin
+      print,' '
+      print,'error opening the wire signal log file'
+      print,'wire signal log file name='+strtrim(wirelog_file,2)
+      print,'dwel_static_wire_filtered_fixbase_cmd terminating'
+      print,' '
+      err_flag=1b
+      err=44
+      goto,cleanup
+    endif
+    ;
+    printf,wfile,strtrim('DWEL stationary scan wire signal log File',2)
+    printf, wfile, strtrim('tzero,intensity,time[k],int[k],sample,line,band', 2)
+  endif 
   
   ;do the processing over the lines for BIL structure
   
@@ -953,46 +1084,92 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
       temp[pos_z,*]=0.0
     endif
     ;scale the data to standard power level
-    temp=scale_mean*temp
+    temp=scale_mean*temp*(transpose(runin_mask)##one_ns)
     ;
-    ;resample to new standard ranges
-    wl_loc=fltarr(nb_out)
-    wl_loc=wl_range+cmreplicate(c2*(Tzero-t_zerol[i]),nb_out)
-    posk=where(wl_loc lt 0.0,nposk)
-    wlk=wl_loc[posk[nposk-1]]
-    lambda=-wlk/(time_step*c2)
-    wl_new=wl_loc-wlk
-    posk=0b
-    posk=where((wl_new ge outrangemin) and (wl_new le outrangemax),nb_loc)
-    if (nb_loc ne nb_resamp) then begin
-      print,'Resampled shot inconsisten, nb_loc='+strtrim(string(nb_loc),2)
-      print,'Expected Value='+strtrim(string(nb_resamp),2)
-      print,'Scan Line Number='+strtrim(string(i),2)
-      print,'Tzero,T_zerol=',Tzero,t_zerol[i]
-      err_flag=1b
-      err=33
-      goto,cleanup
-    endif
-    ;
-    temp=lambda*shift(temp,0,-1)+(1.0-lambda)*temp
-    temp=reform(temp[*,posk])
+
+    ;; get Tzero for each individual waveform from wire signal
+    wire_tzero = fltarr(ns_out)
+    lambda = fltarr(ns_out)
+    ;; resampled waveform data
+    retemp = fltarr(ns_out, nb_resamp)
+    for j = 0, ns_out-1 do begin
+      if mask_all[j,i] eq 0 then begin
+        continue
+      endif 
+      tmpwf = temp[j, *]
+      tmpmax = max(tmpwf[before_casing:out_of_pulse-bins_toward_wire], tmpmaxI)
+      tmpind = before_casing + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
+      istat = peak_int(tmpind*time_step, tmpwf[tmpind], time_int, pulse_int, $
+        offset)
+      wire_tzero[j] = time_int
+
+      ;remove wire signal from waveform
+      ;get a pulse from the pulse model scaled by interpolated pulse peak
+      wire_pulse = interpol(pulse_int*pulse_model, p_time, $
+        p_time+tmpind[1]*time_step-time_int)
+      ;subtract this wire pulse from waveform
+      tmpwf[tmpind[1]-i_val[2]:tmpind[1]+i_val[n_elements(i_val)-1]-i_val[2]] = $
+        tmpwf[tmpind[1]-i_val[2]:tmpind[1]+i_val[n_elements(i_val)-1]-i_val[2]] $
+        - wire_pulse
+
+      ;resample to new standard ranges
+      wl_loc=fltarr(nb_out)
+      wl_loc=wl_range+cmreplicate(c2*(Tzero-wire_tzero[j]),nb_out)
+      posk=where(wl_loc lt 0.0,nposk)
+      wlk=wl_loc[posk[nposk-1]]
+      lambda[j]=-wlk/(time_step*c2)
+      wl_new=wl_loc-wlk
+      posk=0b
+      posk=where((wl_new ge outrangemin) and (wl_new le outrangemax),nb_loc)
+      if (nb_loc ne nb_resamp) then begin
+        print,'Resampled shot inconsistent, nb_loc='+strtrim(string(nb_loc),2)
+        print,'Expected Value='+strtrim(string(nb_resamp),2)
+        print,'Scan Line Number='+strtrim(string(i+1),2)
+        print, 'Shot numbeer='+strtrim(string(j+1), 2)
+        print,'Tzero,wire_tzero=',Tzero,wire_tzero[j]
+        print, 'Tzero intensiyt=', strtrim(string(tmpmax), 2)
+        ;; mask_all[j,i] = 0
+        ;;continue
+        err_flag=1b
+        err=33
+        goto,cleanup
+      endif else begin
+        ; printf, wfile, strtrim('tzero,intensity,time[k],int[k],sample,line,band', 2)
+        buf = string(wire_tzero[j], pulse_int, $
+          (before_casing+tmpmaxI)*time_step, tmpmax, j+1, i+1, tmpmaxI, $
+          format='(4f14.3,3i10)') 
+        buf=strtrim(strcompress(buf),2)
+        while (((ii = strpos(buf, ' '))) ne -1) do $
+            strput, buf, ',', ii
+        printf,wfile,buf
+      endelse 
+      tmpwf = lambda * shift(tmpwf, -1) + (1.0 - lambda) * tmpwf
+      retemp[j, *] = tmpwf[posk]      
+    endfor 
+
     ;round if integer
     if (type lt 4 or type gt 9) then begin
-      temp=fix(round(temp), type=2)
+      retemp=fix(round(retemp), type=2)
     endif
     ;write out the resulting tile
-    writeu,ofile,temp
+    writeu,ofile,retemp
     ;get some stats images
-    mean_image[*,i]=fln*total(temp[*,pos_pos],2)
-    max_image[*,i]=float(max(temp[*,pos_pos],DIMENSION=2))
+    mean_image[*,i]=fln*total(retemp[*,pos_pos],2)
+    max_image[*,i]=float(max(retemp[*,pos_pos],DIMENSION=2))
     ;=================================================
     data=0
     temp = 0
     temp=0b
     posk=0b
     wl_loc=0b
+    wire_tzero =0
+    lambda = 0
+    retemp = 0
   endfor
   
+  flush, wfile
+  free_lun, wfile, /force
+
   ;set the output data type
   if (type lt 4 or type gt 9) then begin
     out_type=2
@@ -1126,6 +1303,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   free_lun, ofile,/force
   free_lun, tfile,/force
   free_lun, ctfile,/force
+  free_lun, wfile, /force
   if (err_flag) then print,'dwel_filtered_fixbase returned with error'
   heap_gc,/verbose
   ;
@@ -1138,6 +1316,13 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
     2) + ' ' + $
     'seconds'
   print, '**************************************************'
+
+  print, '************************************************************'
+  print, 'The minimum range of stationary scans this processing, '
+  print, 'dwel_static_wire_filtered_fixbase_cmd_nsf can accept = 5.0 m'
+  print, 'If your stationary scan is from a closer target, '
+  print, 'the processing may give unexpected results'
+  print, '************************************************************'
 
   return
 end

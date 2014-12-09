@@ -199,7 +199,7 @@ function FakeDataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
         (j+0.5)/double(DWEL_MetaInfo.NoShotsPerScan)), type=3)
       RotaryEncoder = fix(524288*(1 - (i+0.5)*2e-3/(2*!pi)), type=3)
       
-      if ((j eq 0) or (RotaryEncoder eq 0) or (ScanEncoder eq 0)) then begin
+      if ((RotaryEncoder eq 0) or (ScanEncoder eq 0)) then begin
         RotaryEncoder=0L
         ScanEncoder=0L
         ShotZen=0.0
