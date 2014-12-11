@@ -918,8 +918,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         ;
         ;Now calibrate the d values and get the ls_res (residual of LS) if required
         if ((*pb_stats).cal_dat and ~DWEL_AppRefl) then begin
-          eff=DWEL_eff_oz(wavelength,rg)
-          temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/(eff*(*pb_stats).DWEL_cal)
+          eff=DWEL_eff_nsf(wavelength,rg)
+          temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/(eff*(*pb_stats).DWEL_cal*(*pb_stats).dwel_cal_scale)
           if ((n_elements(temp) ne n_elements(d_out)) or $
               (n_elements(temp) ne n_elements(rg))) then begin
             print,'Bad error! temp and d_out do NOT conform!'
@@ -1360,7 +1360,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     ymax:50.0, $
     sdevfac:2.0, $
     r_thresh:0.175, $
-    sievefac:10.0}
+    sievefac:10.0, $
+    dwel_cal_scale:1.0}
   ;; tag names we need in settings
   setting_tag_names = tag_names(finalsettings)
   if n_elements(settings) ne 0 or arg_present(settings) then begin
@@ -1397,6 +1398,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   sdevfac=finalsettings.sdevfac
   r_thresh=finalsettings.r_thresh
   sievefac=finalsettings.sievefac
+  dwel_cal_scale=finalsettings.dwel_cal_scale
   
   ;test a little
   
@@ -1578,11 +1580,15 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     ;; rpow = 1.906181253 ;; Oz DWEL
     dwel_cal = 6607.48 ;; NSF DWEL, for non-scaled intensity
     rpow = 1.29246 ;; NSF DWEL
+    ;; for lambertian panel intensity scaled to 512
+    if dwel_cal_scale eq 1.0 then dwel_cal_scale = 2.010
   endif else begin
     ;; DWEL_cal=712237.051
     ;; rpow = 1.906181253
     dwel_cal = 9663.59 ;; NSF DWEL, for non-scaled intensity
     rpow = 1.25158 ;; NSF DWEL
+    ;; for lambertian panel intensity scaled to 509
+    if dwel_cal_scale eq 1.0 then dwel_cal_scale = 3.808
   endelse
     
   ;set up the calibration as far as possible
@@ -1894,7 +1900,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     DWEL_div:DWEL_div,$
     Dwel_cal:Dwel_cal,$
     rpow:rpow,$
-    s_Factor:s_Factor $
+    s_Factor:s_Factor,$
+    dwel_cal_scale:dwel_cal_scale $
     }
     
   pb_stats=ptr_new(base_stats,/no_copy)
