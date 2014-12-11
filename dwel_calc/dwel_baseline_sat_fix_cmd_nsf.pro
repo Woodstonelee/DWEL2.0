@@ -492,6 +492,9 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     medf_line_scale[tmpind] = 0.0
     medfcasingmax[tmpind] = 0.0
   endif 
+  ;; now replace the line_scale with median filtered one to update scale_mean
+  ;; information in the header files
+  line_scale = medf_line_scale
   ;; ***************************************************************************
 
   ;make some space
