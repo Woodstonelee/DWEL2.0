@@ -131,7 +131,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   printf,tfile,strtrim('[DWEL Point Cloud Data]',2)
   printf,tfile,strtrim('Run made at: '+time_date,2)
-  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band',2)
+  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,I,FWHM',2)
   flush,tfile
   
   ;see if the metadata file exists & remove if it does!
@@ -919,7 +919,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         ;Now calibrate the d values and get the ls_res (residual of LS) if required
         if ((*pb_stats).cal_dat and ~DWEL_AppRefl) then begin
           eff=DWEL_eff_nsf(wavelength,rg)
-          temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/(eff*(*pb_stats).DWEL_cal*(*pb_stats).dwel_cal_scale)
+          temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/(eff*(*pb_stats).DWEL_cal)
           if ((n_elements(temp) ne n_elements(d_out)) or $
               (n_elements(temp) ne n_elements(rg))) then begin
             print,'Bad error! temp and d_out do NOT conform!'
@@ -929,6 +929,20 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           endif
           d_out=temp
           temp=0b
+          temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*intensity/(eff*(*pb_stats).DWEL_cal)
+          intensity = temp
+          temp = 0b
+          eff = dwel_eff_nsf(wavelength, (*pb_stats).range)
+          rvalid = where((*pb_stats).range gt rmax, nvalid)
+          temp = fltarr(size(inline[j,*], /n_elements))
+          if nvalid gt 0 then begin
+            tmprange = (*pb_stats).range
+            temp[rvalid] = $
+            (*pb_stats).s_Factor*tmprange[rvalid]^(*pb_stats).rpow*reform(inline[j, $
+              rvalid])/(eff[rvalid]*(*pb_stats).DWEL_cal)
+            inline[j, *] = fix(round(temp*i_scale), type=2)
+          endif 
+          temp = 0b
           if (ovdebug and saving) then begin
             printf,tempfile,''
             printf,tempfile,'eff'
@@ -989,12 +1003,25 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           resid[j,i]=ls_res
           mean_z[j,i]=range_mean[j,i]*cos(th*!dtor)+(*pb_meta).DWEL_Height
         endelse
+        
+        return_fwhm = fltarr(nump_new)
+        ; now calculate integral of return pulse of each point and the FWHM
+        for k=0,nump_new-1 do begin
+          range_left=(*pb_stats).range[peaks[k]]-range_extent
+          range_right=(*pb_stats).range[peaks[k]]+range_extent
+          posext=where(((*pb_stats).range ge range_left) and ((*pb_stats).range $
+            le range_right),nposext)
+          if nposext gt 0 then begin
+            return_fwhm[k] = total(inline[j, posext])/intensity[k]/i_scale
+          endif 
+        endfor 
+
         ;Now go over the final point cloud model and write out the records to the point cloud file
         for k=0,nump_new-1 do begin
           x=rg[k]*sin(th*!dtor)*sin(ph*!dtor)
           y=rg[k]*sin(th*!dtor)*cos(ph*!dtor)
           z=rg[k]*cos(th*!dtor)+(*pb_meta).DWEL_Height
-          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10)')
+          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,i_scale*intensity[k],return_fwhm[k],format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,2f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1025,7 +1052,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         resid[j,i]=0.0
         mean_z[j,i]=0.0
         if ((*pb_meta).zero_hit_option gt 0) then begin
-          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10)')
+          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,2f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1581,15 +1608,16 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     dwel_cal = 6607.48 ;; NSF DWEL, for non-scaled intensity
     rpow = 1.29246 ;; NSF DWEL
     ;; for lambertian panel intensity scaled to 512
-    if dwel_cal_scale eq 1.0 then dwel_cal_scale = 2.010
+    if dwel_cal_scale eq 1.0 then dwel_cal_scale = 3.027
   endif else begin
     ;; DWEL_cal=712237.051
     ;; rpow = 1.906181253
     dwel_cal = 9663.59 ;; NSF DWEL, for non-scaled intensity
     rpow = 1.25158 ;; NSF DWEL
     ;; for lambertian panel intensity scaled to 509
-    if dwel_cal_scale eq 1.0 then dwel_cal_scale = 3.808
+    if dwel_cal_scale eq 1.0 then dwel_cal_scale = 3.629
   endelse
+  dwel_cal = dwel_cal*dwel_cal_scale
     
   ;set up the calibration as far as possible
   if (cal_dat) then begin
@@ -1900,9 +1928,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     DWEL_div:DWEL_div,$
     Dwel_cal:Dwel_cal,$
     rpow:rpow,$
-    s_Factor:s_Factor,$
-    dwel_cal_scale:dwel_cal_scale $
-    }
+    s_Factor:s_Factor}
     
   pb_stats=ptr_new(base_stats,/no_copy)
   pb_info = ''
