@@ -24,14 +24,17 @@ end
 
 % read the point cloud
 fid = fopen(inptclfile, 'r');
-data = textscan(fid, repmat('%f', 1, 15), 'HeaderLines', 3, 'Delimiter', ',');
+data = textscan(fid, repmat('%f', 1, 17), 'HeaderLines', 3, 'Delimiter', ',');
 fclose(fid);
 intensity = data{4};
 returnind = data{5};
 numreturns =  data{6};
+shotnum = data{7};
 range = data{9};
 sampleind = data{13};
 lineind = data{14};
+p_int = data{16};
+p_fwhm = data{17};
 clear data;
 
 % read saturation mask
@@ -52,14 +55,14 @@ satmaskval= satmask(linearind);
 % range = range(tmpind);
 % sampleind = sampleind(tmpind);
 % lineind = lineind(tmpind);
-panelreturns = [intensity(tmpind), numreturns(tmpind), range(tmpind), ...
-                sampleind(tmpind), lineind(tmpind), satmaskval(tmpind)];
+panelreturns = [shotnum(tmpind), intensity(tmpind), numreturns(tmpind), range(tmpind), ...
+                p_int(tmpind), p_fwhm(tmpind), sampleind(tmpind), lineind(tmpind), satmaskval(tmpind)];
 
 % sort out the points, ascending lineind first and ascending sampleind second
-panelreturns = sortrows(panelreturns, [5, 4]);
+panelreturns = sortrows(panelreturns, [8, 7]);
 
 % write out
 fid = fopen(outpanelreturnsfile, 'w');
-fprintf(fid, 'd_out,number_of_returns,range,sample,line,sat_mask\n');
-fprintf(fid, ['%.3f,%d,%.3f,%d,%d,%d\n'], panelreturns');
+fprintf(fid, 'shot_num,d_out,number_of_returns,range,I,FWHM,sample,line,sat_mask\n');
+fprintf(fid, ['%d,%.3f,%d,%.3f,%.3f,%.3f,%d,%d,%d\n'], panelreturns');
 fclose(fid); 

@@ -14,9 +14,9 @@ pro dwel_pulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time,
   ;INPUTS:
   ;
   ;     wavelength  wavelength of the laser of which the pulse model is needed
-  ;     i_val     positions of first,Left 0.0001,peak,trough,secondary peak,Right 0.0001, last points
-  ;     t_val     time vale of first,Left 0.0001,peak,trough,secondary peak,Right 0.0001, last points
-  ;     r_val     range vale of first,Left 0.0001,peak,trough,secondary peak,Right 0.0001, last points
+  ;     i_val     positions of first,Left cutoff (a threshold),peak,trough,secondary peak,Right cutoff, last points
+  ;     t_val     time vale of first,Left cutoff (a threshold),peak,trough,secondary peak,Right cutoff, last points
+  ;     r_val     range vale of first,Left 0.002,peak,trough,secondary peak,Right 0.002, last points
   ;     p_range   the range ordinates of the model
   ;     p_time    the time ordinates of the model
   ;     pulse     values of the normalised pulse (peak value = 1.0)
@@ -24,7 +24,7 @@ pro dwel_pulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time,
   
   c=0.299792458
   c2=c/2.0
-  
+ 
   ;; NSF DWEL Oct 2014
   if (wavelength eq 1064) then begin
     ; Mean pulse model
@@ -124,12 +124,8 @@ pro dwel_pulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time,
   p_range = p_time*c2
   fwhm=total(pulse,/double)
   t_fwhm=fwhm*(p_time[1]-p_time[0])    ; nanosec
-  r_fwhm=fwhm*(p_range[1]-p_range[0])  ; metres
-  
-  ;find where the left and right 0.0001*peak is
-  tmp_I = where(pulse ge 0.0001)
-  tmp = max(pulse, max_I)
-  
+  r_fwhm=fwhm*(p_range[1]-p_range[0])  ; metres  
+
   ;=====================================
   ; find the trough and secondary peak
   ; maximum peak location
@@ -144,12 +140,24 @@ pro dwel_pulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time,
   tmp = max(pulse[zero_xloc[0]:zero_xloc[2]], tmploc)
   scdpeakloc = fix(mean(tmploc)) + zero_xloc[0]
   ;=====================================
+
+  ;; a threshold to determine where the pulse model intensity is significantly
+  ;; large than background. 
+  cutoff = median(abs(pulse[0:19]))
+
+  tmp = max(pulse, max_I)
+  ;find where the left and right cutoff*peak is
+  tmp_I = where(abs(pulse[0:max_I]) le cutoff*tmp)
+  left_cutoff_ind = tmp_I[n_elements(tmp_I)-1]
+  tmp_I = where(abs(pulse[scdpeakloc+(scdpeakloc-troughloc):n_elements(pulse)-1]) le cutoff*tmp)
+  right_cutoff_ind = tmp_I[0]+scdpeakloc+(scdpeakloc-troughloc)
   
-  i_val=[0, tmp_I[0],  max_I, troughloc, scdpeakloc, tmp_I[n_elements(tmp_I)-1], n_elements(pulse)-1]
+  i_val=[0, left_cutoff_ind,  max_I, troughloc, scdpeakloc, right_cutoff_ind, n_elements(pulse)-1]
   
   r_val=[p_range[i_val[0]],p_range[i_val[1]],p_range[i_val[2]], p_range[i_val[3]], p_range[i_val[4]], p_range[i_val[5]],p_range[i_val[6]]]
   t_val=r_val/c2
   
+  print, 'i_val check=', i_val
   print,'p_val check=',[pulse[i_val[0]],pulse[i_val[1]],pulse[i_val[2]],pulse[i_val[3]],pulse[i_val[4]],pulse[i_val[5]],pulse[i_val[6]]]
   print,'expected number=',i_val[6]+1,' actual number=',n_elements(pulse)
   

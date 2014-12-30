@@ -255,6 +255,76 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
     wl=findgen(bands)*tdif
   endif
   
+  srate_set=0b
+  ;set the default sampling rate
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Sampling Rate*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    text=strtrim(DWEL_headers.DWEL_scan_info[match],2)
+    k=strpos(text,'=')
+    l=strpos(text,'smp/ns')
+    var2=float(strtrim(strmid(text,k+1,l-k-1),2))
+    if (var2 gt 0.0) then begin
+      srate=var2
+      srate_set=1
+    endif else begin
+      srate=2.0
+      srate_set=0b
+    endelse
+  endif else begin
+    srate=2.0
+    srate_set = 0b
+  endelse
+  
+  if (~srate_set) then print,'Sampling rate NOT read from headers!!!'
+  print, 'Sampling rate=' + strtrim(string(srate),2) 
+  
+  ;Get the beam divergence
+  buf=''
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Beam Divergence*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
+    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
+    if (n_elements(sf) gt 1) then begin
+      buf = strtrim(strcompress(sf[1]),2)
+    endif else begin
+      buf = ''
+    endelse
+  endif else begin
+    buf = ''
+  endelse
+  l=strpos(buf,'mrad')
+  if (l gt 0) then buf=strtrim(strmid(buf,0,l-1),2) else buf=''
+  ; print,'buf=',buf
+  val=float(buf)
+  beam_div=val[0]
+  
+  ;Get the scan_step
+  buf=''
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Scans per Complete Rotation*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
+    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
+    if (n_elements(sf) gt 1) then begin
+      buf = strtrim(strcompress(sf[1]),2)
+    endif else begin
+      buf = ''
+    endelse
+  endif else begin
+    buf = ''
+  endelse
+  val=float(buf)
+  if (val[0] gt 0.0) then scan_step=2000.0*!pi/val[0] else scan_step=0.0 ; unit of scan step: mrad
+  sampling_ratio=beam_div/scan_step
+
   if(not file_test(DWEL_Anc_File)) then begin
     print,'Processing stopped! Ancillary file not present or not correct!'
     envi_file_mng,id=fid,/remove
@@ -374,13 +444,30 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   tmpazim = fltarr(nscans)
   for i=0,nscans-1 do begin
     tmp = ShotAzim[where(Mask_all[*, i]), i]
-    tmpazim[i] = median(tmp)
+    if n_elements(tmp) lt 2 then begin
+      if n_elements(tmp) eq 1 then begin
+        tmpazim[i] = tmp
+      endif
+    endif else begin
+      tmpazim[i] = median(tmp)
+    endelse
   endfor
+  tmppos = where(tmpazim ne 0, tmpcount, complement=tmpbadpos, ncomplement=tmpbadcount)
+  if tmpbadcount gt 0 then begin $
+    tmpazim[tmpbadpos] = tmpazim[tmppos[0]] - (tmpbadpos - tmppos[0]) * $
+    scan_step*0.001 * 524288 / (2*!pi)
+    tmppos = where(tmpazim lt 0, tmpcount)
+    if tmpcount gt 0 then begin
+      tmpazim[tmppos] = tmpazim[tmppos] + 524288
+    endif 
+  endif 
   ;; if the decreasing rotary encoder passes through 0 and 524288 (2*pi), add a
   ;; round of 524288 (2*pi) so that later angular calculation is easier.
   tmpdiff = tmpazim[0:nscans-2] - tmpazim[1:nscans-1]
   tmppos = where(tmpdiff lt -524288.0d0/2.0, tmpcount)
-  tmpazim = tmpazim[0:tmppos[0]] + 524288.0d0
+  if tmpcount gt 0 then begin
+    tmpazim[0:tmppos[0]] = tmpazim[0:tmppos[0]] + 524288.0d0
+  endif 
   ;; calculate overlap azimuth range in the scan
   az_range = tmpazim[bad+1] - tmpazim[nscans-1-bad_end]
   scan_overlap = (az_range - 524288.0d0/2.0) / 524288.0d0 * 360.0
@@ -456,77 +543,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   ;; ;now introduce the new mask to ensure minimum wrap
   ;; mask_all[*,0:sel]=0
   ;; mask_all[*,(nscans-bad_end):(nscans-1)]=0
-  
-  srate_set=0b
-  ;set the default sampling rate
-  match = -1
-  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Sampling Rate*')) then match=i
-  endfor
-  if (match ge 0) then begin
-    text=strtrim(DWEL_headers.DWEL_scan_info[match],2)
-    k=strpos(text,'=')
-    l=strpos(text,'smp/ns')
-    var2=float(strtrim(strmid(text,k+1,l-k-1),2))
-    if (var2 gt 0.0) then begin
-      srate=var2
-      srate_set=1
-    endif else begin
-      srate=2.0
-      srate_set=0b
-    endelse
-  endif else begin
-    srate=2.0
-    srate_set = 0b
-  endelse
-  
-  if (~srate_set) then print,'Sampling rate NOT read from headers!!!'
-  print, 'Sampling rate=' + strtrim(string(srate),2) 
-  
-  ;Get the beam divergence
-  buf=''
-  match = -1
-  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Beam Divergence*')) then match=i
-  endfor
-  if (match ge 0) then begin
-    ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
-    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
-    if (n_elements(sf) gt 1) then begin
-      buf = strtrim(strcompress(sf[1]),2)
-    endif else begin
-      buf = ''
-    endelse
-  endif else begin
-    buf = ''
-  endelse
-  l=strpos(buf,'mrad')
-  if (l gt 0) then buf=strtrim(strmid(buf,0,l-1),2) else buf=''
-  ; print,'buf=',buf
-  val=float(buf)
-  beam_div=val[0]
-  
-  ;Get the scan_step
-  buf=''
-  match = -1
-  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*Scans per Complete Rotation*')) then match=i
-  endfor
-  if (match ge 0) then begin
-    ;   print,'match=',DWEL_headers.DWEL_scan_info[match]
-    sf = strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)
-    if (n_elements(sf) gt 1) then begin
-      buf = strtrim(strcompress(sf[1]),2)
-    endif else begin
-      buf = ''
-    endelse
-  endif else begin
-    buf = ''
-  endelse
-  val=float(buf)
-  if (val[0] gt 0.0) then scan_step=2000.0*!pi/val[0] else scan_step=0.0 ; unit of scan step: mrad
-  sampling_ratio=beam_div/scan_step
-  
+    
   ;get the Ifov and Maximum Theta
   set_ifov:
   

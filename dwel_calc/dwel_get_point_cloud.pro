@@ -675,7 +675,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         dr=db*psum/temp
         d2r=d2b*psum/temp
       endelse
-      temp=0b
+      ;temp=0b
       ; Check neighbourhoods of derivative and second derivative of correlation for peaks
       bs1 = shift(dr,1)
       bs2=shift(dr,2)

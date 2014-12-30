@@ -40,11 +40,17 @@
 ;the peak of the outgoing iterated pulse!
 ;
 ; MODIFICATION HISTORY:
-;David Jupp, Sept 2014 - Created this routine. 
-;Zhan Li, Oct 2014 - Added documentation comments.
+;David Jupp, Sept 2014, 
+;  - Created this routine. 
+;Zhan Li, Oct 2014,
+;  - Added documentation comments.
+;Zhan Li, Dec 2014, 
+;  - Add one more keyword argument "wire". If it is set, it indicates the scan
+;is collected with wire and will remove wire signals from waveforms after Tzero
+;correction in this processing. 
 ;-
 pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
-  get_info_stats, zen_tweak, err
+  get_info_stats, zen_tweak, err, wire=wire
 
   ;; FilteredFile: the file name of the DWEL cube file that had been base and sat fixed and then filtered
   ;
@@ -332,9 +338,19 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
     endif
   endelse
   
+  bins_toward_wire = 0
   if (wavelength eq 1064) then begin
     target_dn=512.0
-  endif else target_dn=509.0
+    if keyword_set(wire) then begin
+      ;; 332 is the mean peak location of lambertian panel returns
+      bins_toward_wire = out_of_pulse - 332 - 10 
+    endif 
+  endif else begin
+    target_dn=509.0
+    if keyword_set(wire) then begin
+      bins_toward_wire = out_of_pulse - 311 - 10
+    endif 
+  endelse 
   
   ;input some planes of data from the ancillary file
   anc_data=lonarr(ns,nl,9)
@@ -455,7 +471,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
         save[1,i]=float(count)
         ;      save[2,i]=max(temp,mpos)-temp2
         save[2,i]=tempmax-temp2
-        save[3,i]=float(mpos)*time_step
+        save[3,i]=float(mpos)
         save[4,i]=float(temp2)
         save[5,i]=float(line_scale[i])
         save[6,i]=float(sqrt(total((temp-temp2)^2,/double)))
@@ -935,63 +951,156 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;set up the pointer to read the input file again
   bufrs=long(nbytes)*long(nb_out)*long(ns_out)
   pointsz=long64(0)
+
+  if keyword_set(wire) then begin
+    wire_tzero = fltarr(ns_out,nl_out)
+    wire_max = fltarr(ns_out, nl_out)
+  endif 
   
   ;do the processing over the lines for BIL structure
-  
-  for i=0, nl_out-1 do begin
-    ;first get the data tile
-    ;    data=envi_get_tile(tile_id,i)
-    ;    data=envi_get_slice(fid=infile_fid, line=i, /bil)
-    data=read_binary(inlun,data_start=pointsz,data_dims=[ns_out,nb_out],data_type=type)
-    pointsz=long64(pointsz)+long64(bufrs)
-    pos_z=where(mask_all[*,i] eq 0,count_z)
-    temp=float(data)
-    
-    temp=temp-transpose(baseline+mean_base)##one_ns
-    ;    temp=temp*(transpose(runin_mask)##one_ns)
-    if (count_z gt 0L) then begin
-      temp[pos_z,*]=0.0
-    endif
-    ;scale the data to standard power level
-    temp=scale_mean*temp
-    ;
-    ;resample to new standard ranges
-    wl_loc=fltarr(nb_out)
-    wl_loc=wl_range+cmreplicate(c2*(Tzero-t_zerol[i]),nb_out)
-    posk=where(wl_loc lt 0.0,nposk)
-    wlk=wl_loc[posk[nposk-1]]
-    lambda=-wlk/(time_step*c2)
-    wl_new=wl_loc-wlk
-    posk=0b
-    posk=where((wl_new ge outrangemin) and (wl_new le outrangemax),nb_loc)
-    if (nb_loc ne nb_resamp) then begin
-      print,'Resampled shot inconsisten, nb_loc='+strtrim(string(nb_loc),2)
-      print,'Expected Value='+strtrim(string(nb_resamp),2)
-      print,'Scan Line Number='+strtrim(string(i),2)
-      print,'Tzero,T_zerol=',Tzero,t_zerol[i]
-      err_flag=1b
-      err=33
-      goto,cleanup
-    endif
-    ;
-    temp=lambda*shift(temp,0,-1)+(1.0-lambda)*temp
-    temp=reform(temp[*,posk])
-    ;round if integer
-    if (type lt 4 or type gt 9) then begin
-      temp=fix(round(temp), type=2)
-    endif
-    ;write out the resulting tile
-    writeu,ofile,temp
-    ;get some stats images
-    mean_image[*,i]=fln*total(temp[*,pos_pos],2)
-    max_image[*,i]=float(max(temp[*,pos_pos],DIMENSION=2))
-    ;=================================================
-    data=0
-    temp = 0
-    temp=0b
-    posk=0b
-    wl_loc=0b
-  endfor
+
+  if keyword_set(wire) then begin
+    for i=0, nl_out-1 do begin
+      ;first get the data tile
+      ;    data=envi_get_tile(tile_id,i)
+      ;    data=envi_get_slice(fid=infile_fid, line=i, /bil)
+      data=read_binary(inlun,data_start=pointsz,data_dims=[ns_out,nb_out],data_type=type)
+      pointsz=long64(pointsz)+long64(bufrs)
+      pos_z=where(mask_all[*,i] eq 0,count_z)
+      temp=float(data)
+
+      temp=temp-transpose(baseline+mean_base)##one_ns
+      ;    temp=temp*(transpose(runin_mask)##one_ns)
+      if (count_z gt 0L) then begin
+        temp[pos_z,*]=0.0
+      endif
+      ;scale the data to standard power level
+      temp=scale_mean*temp
+      
+      ;; get Tzero for each individual waveform from wire signal
+      lambda = fltarr(ns_out)
+      ;; resampled waveform data
+      retemp = fltarr(ns_out, nb_resamp)
+      for j = 0, ns_out-1 do begin
+        if mask_all[j,i] eq 0 then begin
+          continue
+        endif 
+        tmpwf = temp[j, *]
+        tmpmax = max(tmpwf[before_casing:out_of_pulse-bins_toward_wire], tmpmaxI)
+        tmpind = before_casing + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
+        istat = peak_int(tmpind*time_step, tmpwf[tmpind], time_int, pulse_int, $
+          offset)
+        wire_tzero[j, i] = time_int
+        wire_max[j, i] = pulse_int
+
+        ;remove wire signal from waveform
+        ;get a pulse from the pulse model scaled by interpolated pulse peak
+        wire_pulse = interpol(pulse_int*pulse_model, p_time, $
+          p_time+tmpind[1]*time_step-time_int)
+        ;subtract this wire pulse from waveform
+        tmpwf[tmpind[1]-i_val[2]:tmpind[1]+i_val[n_elements(i_val)-1]-i_val[2]] = $
+          tmpwf[tmpind[1]-i_val[2]:tmpind[1]+i_val[n_elements(i_val)-1]-i_val[2]] $
+          - wire_pulse
+
+        ;resample to new standard ranges
+        wl_loc=fltarr(nb_out)
+        wl_loc=wl_range+cmreplicate(c2*(Tzero-wire_tzero[j, i]),nb_out)
+        posk=where(wl_loc lt 0.0,nposk)
+        wlk=wl_loc[posk[nposk-1]]
+        lambda[j]=-wlk/(time_step*c2)
+        wl_new=wl_loc-wlk
+        posk=0b
+        posk=where((wl_new ge outrangemin) and (wl_new le outrangemax),nb_loc)
+        if (nb_loc ne nb_resamp) then begin
+          print,'Resampled shot inconsistent, nb_loc='+strtrim(string(nb_loc),2)
+          print,'Expected Value='+strtrim(string(nb_resamp),2)
+          print,'Scan Line Number='+strtrim(string(i+1),2)
+          print, 'Shot numbeer='+strtrim(string(j+1), 2)
+          print,'Tzero,wire_tzero=',Tzero,wire_tzero[j, i]
+          print, 'Tzero intensiyt=', strtrim(string(tmpmax), 2)
+          ;; mask_all[j,i] = 0
+          ;;continue
+          err_flag=1b
+          err=33
+          goto,cleanup
+        endif 
+        tmpwf = lambda * shift(tmpwf, -1) + (1.0 - lambda) * tmpwf
+        retemp[j, *] = tmpwf[posk]      
+      endfor 
+      ;round if integer
+      if (type lt 4 or type gt 9) then begin
+        retemp=fix(round(retemp), type=2)
+      endif
+      ;write out the resulting tile
+      writeu,ofile,retemp
+      ;get some stats images
+      mean_image[*,i]=fln*total(retemp[*,pos_pos],2)
+      max_image[*,i]=float(max(retemp[*,pos_pos],DIMENSION=2))
+      ;=================================================
+      data=0
+      temp = 0
+      temp=0b
+      posk=0b
+      wl_loc=0b
+      lambda = 0
+      retemp = 0
+    endfor
+  endif else begin  
+    for i=0, nl_out-1 do begin
+      ;first get the data tile
+      ;    data=envi_get_tile(tile_id,i)
+      ;    data=envi_get_slice(fid=infile_fid, line=i, /bil)
+      data=read_binary(inlun,data_start=pointsz,data_dims=[ns_out,nb_out],data_type=type)
+      pointsz=long64(pointsz)+long64(bufrs)
+      pos_z=where(mask_all[*,i] eq 0,count_z)
+      temp=float(data)
+
+      temp=temp-transpose(baseline+mean_base)##one_ns
+      ;    temp=temp*(transpose(runin_mask)##one_ns)
+      if (count_z gt 0L) then begin
+        temp[pos_z,*]=0.0
+      endif
+      ;scale the data to standard power level
+      temp=scale_mean*temp
+      ;
+      ;resample to new standard ranges
+      wl_loc=fltarr(nb_out)
+      wl_loc=wl_range+cmreplicate(c2*(Tzero-t_zerol[i]),nb_out)
+      posk=where(wl_loc lt 0.0,nposk)
+      wlk=wl_loc[posk[nposk-1]]
+      lambda=-wlk/(time_step*c2)
+      wl_new=wl_loc-wlk
+      posk=0b
+      posk=where((wl_new ge outrangemin) and (wl_new le outrangemax),nb_loc)
+      if (nb_loc ne nb_resamp) then begin
+        print,'Resampled shot inconsisten, nb_loc='+strtrim(string(nb_loc),2)
+        print,'Expected Value='+strtrim(string(nb_resamp),2)
+        print,'Scan Line Number='+strtrim(string(i),2)
+        print,'Tzero,T_zerol=',Tzero,t_zerol[i]
+        err_flag=1b
+        err=33
+        goto,cleanup
+      endif
+      ;
+      temp=lambda*shift(temp,0,-1)+(1.0-lambda)*temp
+      temp=reform(temp[*,posk])
+      ;round if integer
+      if (type lt 4 or type gt 9) then begin
+        temp=fix(round(temp), type=2)
+      endif
+      ;write out the resulting tile
+      writeu,ofile,temp
+      ;get some stats images
+      mean_image[*,i]=fln*total(temp[*,pos_pos],2)
+      max_image[*,i]=float(max(temp[*,pos_pos],DIMENSION=2))
+      ;=================================================
+      data=0
+      temp = 0
+      temp=0b
+      posk=0b
+      wl_loc=0b
+    endfor
+  endelse 
   
   ;set the output data type
   if (type lt 4 or type gt 9) then begin
@@ -1023,6 +1132,15 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   if ((dot lt 0) or ((strlen(OutUpdatedFile)-dot-1) ne 3)) then dot = strlen(OutUpdatedFile)
   maskfile = strmid(OutUpdatedFile, 0, dot)+'_sat_mask.img'
   mask_base=file_basename(maskfile)
+
+  ;; if a scan with wire and asking for stats information output, write wire
+  ;; tzero and intensity to an image file.  
+  if get_info_stats and keyword_set(wire) then begin
+      dot = strpos(OutUpdatedFile,'.',/reverse_search)
+      if ((dot lt 0) or ((strlen(OutUpdatedFile)-dot-1) ne 3)) then dot = strlen(OutUpdatedFile)
+      wirefile = strmid(OutUpdatedFile, 0, dot)+'_wire.img'
+      wire_base=file_basename(wirefile)
+  endif 
   
   ;===================================================
   ;write out header for the output file
@@ -1069,7 +1187,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   openw, ofile, ancfile,/get_lun,error=text_err
   if (text_err ne 0) then begin
     print, strtrim('Halting DWEL_filter_baseline_fix', 2)
-    print, strtrim(['Error opening output file '+strtrim(ancname,2)], 2)
+    print, strtrim(['Error opening output file '+strtrim(anc_base,2)], 2)
     err_flag=1b
     err=13
     goto, cleanup
@@ -1095,7 +1213,6 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   writeu,ofile,round(100.0*zeniths)
   writeu,ofile,round(100.0*azimuths)
   free_lun, ofile,/force
-  anc_data=0b
   mean_image=0b
   
   ENVI_SETUP_HEAD, fname=ancfile, $
@@ -1116,10 +1233,54 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   envi_write_file_header, anc_fid
   
   envi_file_mng,id=anc_fid,/remove
-  
+
+  if keyword_set(wire) and get_info_stats then begin
+    ;; write wire image file.
+    text_err=0
+    openw, ofile, wirefile,/get_lun,error=text_err
+    if (text_err ne 0) then begin
+      print, strtrim('Halting DWEL_filter_baseline_fix', 2)
+      print, strtrim(['Error opening output file '+strtrim(wire_base,2)], 2)
+      err_flag=1b
+      err=14
+      goto, cleanup
+    endif
+
+    for j=0,3 do begin
+      writeu,ofile,long(anc_data[*,*,j])
+    endfor
+    writeu,ofile,round(100.0*wire_tzero)
+    writeu,ofile,round(wire_max)
+    writeu,ofile,long(mask_all)
+    writeu,ofile,round(100.0*zeniths)
+    writeu,ofile,round(100.0*azimuths)
+    free_lun, ofile,/force
+
+    ENVI_SETUP_HEAD, fname=wirefile, $
+      ns=ns_out, nl=nl_out, nb=9, $
+      interleave=0, data_type=3, $
+      /write, $
+      bnames=['Sat Mask','Sun Mask','Scan Encoder','Rotary Encoder', $
+      'Wire Tzero','Wire Peak','Mask','Zenith','Azimuth']
+
+    envi_open_file,wirefile,r_fid=wire_fid,/no_interactive_query,/no_realize
+
+    ;write out the previous header records
+    status=DWEL_put_headers(wire_fid,DWEL_headers)
+    ;
+    ;write the new header(s) into the HDR file
+    envi_assign_header_value, fid=wire_fid, keyword='DWEL_filtered_fix_info', $
+      value=DWEL_filtered_fix_info
+    envi_write_file_header, wire_fid
+
+    envi_file_mng,id=wire_fid,/remove
+    
+  endif 
+
+  anc_data=0b
+
   ;=====================================================================
-  ; Do the final cleanup
-  
+  ; Do the final cleanup  
   cleanup:
   free_lun, lun,/force
   free_lun, inlun,/force

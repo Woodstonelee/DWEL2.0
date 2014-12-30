@@ -1064,11 +1064,11 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
     endif
     ;
     printf,wfile,strtrim('DWEL stationary scan wire signal log File',2)
-    printf, wfile, strtrim('tzero,intensity,time[k],int[k],sample,line,band', 2)
+    printf, wfile, strtrim('tzero,intensity,time[k],int[k],sample,line,band,shot_num', 2)
   endif 
   
   ;do the processing over the lines for BIL structure
-  
+  shot_num = 0L
   for i=0, nl_out-1 do begin
     ;first get the data tile
     ;    data=envi_get_tile(tile_id,i)
@@ -1096,6 +1096,8 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
       if mask_all[j,i] eq 0 then begin
         continue
       endif 
+      shot_num = shot_num + 1L
+
       tmpwf = temp[j, *]
       tmpmax = max(tmpwf[before_casing:out_of_pulse-bins_toward_wire], tmpmaxI)
       tmpind = before_casing + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
@@ -1137,7 +1139,8 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
         ; printf, wfile, strtrim('tzero,intensity,time[k],int[k],sample,line,band', 2)
         buf = string(wire_tzero[j], pulse_int, $
           (before_casing+tmpmaxI)*time_step, tmpmax, j+1, i+1, tmpmaxI, $
-          format='(4f14.3,3i10)') 
+          shot_num, $
+          format='(4f14.3,4i10)') 
         buf=strtrim(strcompress(buf),2)
         while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii

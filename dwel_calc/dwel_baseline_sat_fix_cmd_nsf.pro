@@ -11,6 +11,7 @@ function apply_sat_fix_nsf, basefixed_satwf, pulse_model, i_val, satfixedwf=satf
   
   ; initial maximum peak location
   tmp = max(basefixed_satwf, maxpeakloc)
+  allmaxpeakloc = where(basefixed_satwf eq tmp)
   maxpeakloc = maxpeakloc[0]
   nu_pos=where(basefixed_satwf eq tmp,nu_npos)
   if (nu_npos le 1) then return,2
@@ -42,11 +43,9 @@ function apply_sat_fix_nsf, basefixed_satwf, pulse_model, i_val, satfixedwf=satf
   ;
   ;now find the centre position if there is a run of top values of the main saturated waveform
   ;again use mean of positions as default position of the main peak
-  nu_pos=where(basefixed_satwf[maxpeakloc:zero_xloc[0]],nu_npos)
-  if (nu_npos gt 1) then begin
-    centpeak=mean(float(nu_pos),/double)+float(maxpeakloc)
-  endif else centpeak=float(maxpeakloc)
-  ;
+  ;use the mean of saturated positions
+  centpeak = mean(allmaxpeakloc)
+
   ;now only use the 1% and 99% points rather than overwriting full pulse length
   plen = n_elements(pulse_model[i_val[1]:i_val[5]])
   satfixedwf = basefixed_satwf
@@ -73,7 +72,7 @@ function apply_sat_fix_nsf, basefixed_satwf, pulse_model, i_val, satfixedwf=satf
 end
 
 pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
-    out_satfix_name, Casing_Range, get_info_stats, zen_tweak, err
+    out_satfix_name, Casing_Range, get_info_stats, zen_tweak, err, wire=wire
   ;; DWELCubeFile: the full file name of the DWEL cube file
   ;; Casing_Range: [min_zen_angle, max_zen_angle], the zenith angle
   ;; range to extract casing returns and get Tzero and electronic
@@ -321,9 +320,19 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     endelse
   endelse
   
+  bins_toward_wire = 0
   if (wavelength eq 1064) then begin
     target_dn=512.0
-  endif else target_dn=509.0
+    if keyword_set(wire) then begin
+      ;; 332 is the mean peak location of lambertian panel returns
+      bins_toward_wire = out_of_pulse - 332 - 10 
+    endif 
+  endif else begin
+    target_dn=509.0
+    if keyword_set(wire) then begin
+      bins_toward_wire = out_of_pulse - 311 - 10
+    endif 
+  endelse 
   
   ;close up the envi files
   envi_file_mng,id=infile_fid,/remove
@@ -930,6 +939,11 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
       totbad=0L
       for si=0,count_sat-1 do begin
         unsattemp=reform(temp[sat_pos[si], *])
+
+        if keyword_set(wire) then begin
+          wirewf = unsattemp
+        end
+
         satflag = apply_sat_fix_nsf(reform(temp[sat_pos[si], *]), pulse_model, i_val, satfixedwf=unsattemp)
         if (satflag lt 2) then sat_mask[sat_pos[si],i]=1
         if (satflag le 0) then begin
@@ -940,6 +954,20 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
           ;          print, 'line=', i, ', sample=', sat_pos[si]
           continue
         endif else begin
+          if keyword_set(wire) then begin
+            ;; wiremax = max(wirewf[before_casing:out_of_pulse-bins_toward_wire], $
+            ;;   wiremaxind)
+            ;; wiremaxind = wiremaxind + before_casing
+            ;; if the substitute section by sat fix overlap with wire pulse, then
+            ;; paste the wire signal back
+            tmpmax = max(unsattemp, tmpind)
+            if (tmpind - i_val[2] + i_val[1]) le out_of_pulse-i_val[6]+i_val[5] then begin
+              unsattemp[tmpind-i_val[2]+i_val[1]-1:out_of_pulse-i_val[6]+i_val[5]] $
+                = $
+                wirewf[tmpind-i_val[2]+i_val[1]-1:out_of_pulse-i_val[6]+i_val[5]]
+
+            endif
+          endif  
           satfixeddata[sat_pos[si], *] = unsattemp
         endelse
         unsattemp=0b
