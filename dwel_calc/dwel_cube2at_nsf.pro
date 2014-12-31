@@ -453,7 +453,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
     endelse
   endfor
   tmppos = where(tmpazim ne 0, tmpcount, complement=tmpbadpos, ncomplement=tmpbadcount)
-  if tmpbadcount gt 0 then begin $
+  if tmpbadcount gt 0 then begin
     tmpazim[tmpbadpos] = tmpazim[tmppos[0]] - (tmpbadpos - tmppos[0]) * $
     scan_step*0.001 * 524288 / (2*!pi)
     tmppos = where(tmpazim lt 0, tmpcount)

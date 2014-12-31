@@ -489,18 +489,35 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   ;; with a median filter to remove any possible noise or deviant. 
   medfwidth = 20 ; the window size of median filter
   casingmax = reform(save[2, *])
-  padcasingmax = [(fltarr(medfwidth)+1.0)*median(casingmax[0:medfwidth-1]), $
-    casingmax, (fltarr(medfwidth)+1.0)*median(casingmax[nl-medfwidth:nl-1])]
+  ;; It is possible that all shots in a scan line are bad and casing
+  ;; max in that line needs to be removed before median filter. 
+  pos_sav = where(save[1, *] gt 0, npos_sav)
+  tmpcasingmax = casingmax[pos_sav]
+  tmpnl = n_elements(tmpcasingmax)
+  padcasingmax = [(fltarr(medfwidth)+1.0)*median(tmpcasingmax[0:medfwidth-1]), $
+    tmpcasingmax, $ 
+    (fltarr(medfwidth)+1.0)*median(casingmax[tmpnl-medfwidth:tmpnl-1])]
   medfcasingmax = median(padcasingmax, medfwidth, /even)
-  medfcasingmax = medfcasingmax[medfwidth:medfwidth+nl-1]
+  medfcasingmax = medfcasingmax[medfwidth:medfwidth+tmpnl-1]
+  ;; fill the gap lines of casing max with linear interpolation
+  medfcasingmax = interpol(medfcasingmax, pos_sav, $
+    indgen(n_elements(casingmax)))
+  
+  ;; padcasingmax = [(fltarr(medfwidth)+1.0)*median(casingmax[0:medfwidth-1]), $
+  ;;   casingmax, (fltarr(medfwidth)+1.0)*median(casingmax[nl-medfwidth:nl-1])]
+  ;; medfcasingmax = median(padcasingmax, medfwidth, /even)
+  ;; medfcasingmax = medfcasingmax[medfwidth:medfwidth+nl-1]
+
   ;; get a scaling factor to normalize all casing return intensities to a
   ;; targeted DN. 
   medf_line_scale = target_dn / medfcasingmax
-  tmpind = where(save[2,*] eq 0, tmpnum)
-  if tmpnum gt 0 then begin
-    medf_line_scale[tmpind] = 0.0
-    medfcasingmax[tmpind] = 0.0
-  endif 
+
+  ;; tmpind = where(save[2,*] eq 0, tmpnum)
+  ;; if tmpnum gt 0 then begin
+  ;;   medf_line_scale[tmpind] = 0.0
+  ;;   medfcasingmax[tmpind] = 0.0
+  ;; endif 
+
   ;; now replace the line_scale with median filtered one to update scale_mean
   ;; information in the header files
   line_scale = medf_line_scale
