@@ -270,12 +270,12 @@ pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
   
   ;; give a default scan encoder value of nadir shift here if you get one so
   ;; that you don't have to put nadir shift in the command everytime
-  if n_elements(nadirelevshift) ne 0 or arg_present(k) then begin ; function
+  if n_elements(nadirelevshift) ne 0 or arg_present(nadirelevshift) then begin ; function
   ; calling gives nadir shift value
   
   endif else begin ; nadir shift value is not given, use default values
     
-    nadirelevshift = 392433 ; 130289 ; this default value was from NSF DWEL 2014/05/03
+    nadirelevshift = 392433 ; NSF DWEL
   endelse
   
   DWEL_MetaInfo = CheckDWEL(DWEL_H5File,Wavelength,nadirelevshift,err)
