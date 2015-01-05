@@ -82,11 +82,12 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   o_name=''
   ctfile=30
   before_casing=0
-  check=0b
+  check=0b ;; if we ever clip out the first 200 bins (100 ns) to
+  ;; extend the total available measurement range of waveform bins. 
   if (check) then begin
-    out_of_pulse=200
+    out_of_pulse=200 ; in unit of bins
   endif else begin
-    out_of_pulse=400
+    out_of_pulse=400 ; in unit of bins
   endelse
   target_dn=512.0
   err=0
@@ -97,7 +98,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
   ;; the FWHM of outgoing pulse, ns
   outgoing_fwhm = 5.1
   ;; the full width of outgoing pulse where intensity is below 0.01 of
-  ;;maximum
+  ;;maximum, in unit of ns
   pulse_width_range = 40.0
   print,'pulse_width_range=',pulse_width_range
   ;saturation test
@@ -338,18 +339,10 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
     endif
   endelse
   
-  bins_toward_wire = 0
   if (wavelength eq 1064) then begin
     target_dn=512.0
-    if keyword_set(wire) then begin
-      ;; 332 is the mean peak location of lambertian panel returns
-      bins_toward_wire = out_of_pulse - 332 - 10 
-    endif 
   endif else begin
     target_dn=509.0
-    if keyword_set(wire) then begin
-      bins_toward_wire = out_of_pulse - 311 - 10
-    endif 
   endelse 
   
   ;input some planes of data from the ancillary file
@@ -981,13 +974,15 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
       lambda = fltarr(ns_out)
       ;; resampled waveform data
       retemp = fltarr(ns_out, nb_resamp)
+      w_start_bin=fix((t_zerol[i]-0.4-pulse_width_range/8.0)/time_step)
+      w_end_bin=fix((t_zerol[i]-0.4+pulse_width_range/8.0)/time_step)
       for j = 0, ns_out-1 do begin
         if mask_all[j,i] eq 0 then begin
           continue
         endif 
         tmpwf = temp[j, *]
-        tmpmax = max(tmpwf[before_casing:out_of_pulse-bins_toward_wire], tmpmaxI)
-        tmpind = before_casing + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
+        tmpmax = max(tmpwf[w_start_bin:w_end_bin], tmpmaxI)
+        tmpind = w_start_bin + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
         istat = peak_int(tmpind*time_step, tmpwf[tmpind], time_int, pulse_int, $
           offset)
         wire_tzero[j, i] = time_int

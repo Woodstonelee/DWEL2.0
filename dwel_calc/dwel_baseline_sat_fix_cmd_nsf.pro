@@ -104,9 +104,15 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   ;more internal settings
   ;always get the pulse information and write out files at this time
   get_info_stats=1b
-  ; position where you are free of the casing effects - for mean baseline
-  out_of_pulse=400
-  ;skip these values - currently noisy and useless
+  check=0b ;; if we ever clip out the first 200 bins (100 ns) to
+  ;; extend the total available measurement range of waveform bins. 
+  if (check) then begin
+    ; position where you are free of the casing effects - for mean baseline
+    out_of_pulse=200 ; in unit of bins
+  endif else begin
+    out_of_pulse=400 ; in unit of bins
+  endelse
+  ;skip these values - currently noisy and useless, in unit of bins
   before_casing=100
   ;target dn preset but set later
   target_dn=512.0
@@ -123,6 +129,7 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
   ;the "FWHM" of outgoing pulse (now just a number used and calibrated)
   outgoing_fwhm = 5.1
   ;the full width of outgoing pulse where intensity is below 0.01 of maximum
+  ; in unit of ns. 
   pulse_width_range = 40.0
   ;saturation test value in DN
   sat_test=1023L
@@ -320,18 +327,10 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
     endelse
   endelse
   
-  bins_toward_wire = 0
   if (wavelength eq 1064) then begin
     target_dn=512.0
-    if keyword_set(wire) then begin
-      ;; 332 is the mean peak location of lambertian panel returns
-      bins_toward_wire = out_of_pulse - 332 - 10 
-    endif 
   endif else begin
     target_dn=509.0
-    if keyword_set(wire) then begin
-      bins_toward_wire = out_of_pulse - 311 - 10
-    endif 
   endelse 
   
   ;close up the envi files
@@ -453,8 +452,8 @@ pro dwel_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
         ;      save[2,i]=max(temp,mpos)-temp2
         save[2,i]=tempmax-temp2 ; raw DN max subtracts mean base DN
         save[3,i]=float(mpos)
-        save[4,i]=float(temp2)  ; mean base DN from standard target (Lambertian
-                                ; panel) 
+        save[4,i]=float(temp2)  ; mean base DN from standard target
+        ; (Lambertian panel) 
         save[5,i]=float(line_scale[i])
         save[6,i]=float(sqrt(total((temp-temp2)^2,/double)))
         ;      save[7,i]=(wl[1]-wl[0])*save[6,i]/(max(temp)-temp2)

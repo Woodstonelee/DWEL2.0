@@ -53,6 +53,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   if ((*pb_meta).Zero_Hit_Option) then add='_addgap' else add=''
   if ((*pb_meta).Add_DWEL) then add=add+'_adddwel' else add=add+''
   
+  laser_man = (*pb_meta).laser_man
+
   cvthresh=threshold/512.0
   
   ; Open input and ancillary files
@@ -918,7 +920,13 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         ;
         ;Now calibrate the d values and get the ls_res (residual of LS) if required
         if ((*pb_stats).cal_dat and ~DWEL_AppRefl) then begin
-          eff=DWEL_eff_nsf(wavelength,rg)
+          if strcmp(laser_man, 'manlight') then begin
+            eff=DWEL_eff_nsf(wavelength,rg)
+          endif
+          if strcmp(laser_man, 'keopsys') then begin
+            eff=DWEL_eff_oz(wavelength,rg)
+          endif
+
           temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/(eff*(*pb_stats).DWEL_cal)
           if ((n_elements(temp) ne n_elements(d_out)) or $
               (n_elements(temp) ne n_elements(rg))) then begin
@@ -932,7 +940,14 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*intensity/(eff*(*pb_stats).DWEL_cal)
           intensity = temp
           temp = 0b
-          eff = dwel_eff_nsf(wavelength, (*pb_stats).range)
+
+          if strcmp(laser_man, 'manlight') then begin
+            eff=DWEL_eff_nsf(wavelength,(*pb_stats).range)
+          endif
+          if strcmp(laser_man, 'keopsys') then begin
+            eff=DWEL_eff_oz(wavelength,(*pb_stats).range)
+          endif
+
           rvalid = where((*pb_stats).range gt rmax, nvalid)
           temp = fltarr(size(inline[j,*], /n_elements))
           if nvalid gt 0 then begin
@@ -1575,6 +1590,20 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   
   print,'Beam Divergence='+strtrim(string(DWEL_div),2)
   
+  ;Read the laser manufacturer from the scan info
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*lasers*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
+    laser_man = sf[1]
+  endif else begin
+    laser_man = 'manlight'
+  endelse
+  
+  print,'Laser manufacturer = '+strtrim(laser_man)
+
   info=DWEL_headers.dwel_adaptation
   
   wavelength=1548
@@ -1598,24 +1627,51 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   endelse
   
   print,'wavelength='+strtrim(string(wavelength),2)
+
+  ;Read the laser power set by user
+  match = -1
+  if wavelength eq 1064 then begin
+    for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+      if (strmatch(DWEL_headers.DWEL_scan_info[i],'*power1064*')) then match=i
+    endfor
+    if (match ge 0) then begin
+      sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
+      laser_power = float(sf[1])
+    endif else begin
+      laser_power = 1300.0 ;; input current
+    endelse
+  endif else begin
+    for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+      if (strmatch(DWEL_headers.DWEL_scan_info[i],'*power1064*')) then match=i
+    endfor
+    if (match ge 0) then begin
+      sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
+      laser_power = float(sf[1])
+    endif else begin
+      laser_power = 130.0 ;; input current
+    endelse
+  endelse 
   
-  ;the calibration is now known for 2006 and 2009 but others
+  print,'Laser power setting by user, input current='+strtrim(string(laser_power),2)
+  
+  ;the calibration is now known as of 20141220
   ;are interpolated or extrapolated
   if (wavelength eq 1064) then begin
-    ;; DWEL_cal=2052936.584 ;; Oz DWEL, for scaled intensity with lambertian
-    ;; target intensity and target_dn
-    ;; rpow = 1.906181253 ;; Oz DWEL
-    dwel_cal = 6607.48 ;; NSF DWEL, for non-scaled intensity
-    rpow = 1.29246 ;; NSF DWEL
-    ;; for lambertian panel intensity scaled to 512
-    if dwel_cal_scale eq 1.0 then dwel_cal_scale = 3.027
+    if strcmp(laser_man, 'manlight', /fold_case) then begin
+      dwel_cal = 10591.354*2.010*laser_power/1300.0 ;; NSF DWEL, for scaled intensity
+      rpow = 1.545 ;; NSF DWEL
+    endif 
+    if strcmp(laser_man, 'keopsys', /fold_case) then begin
+      
+    endif 
   endif else begin
-    ;; DWEL_cal=712237.051
-    ;; rpow = 1.906181253
-    dwel_cal = 9663.59 ;; NSF DWEL, for non-scaled intensity
-    rpow = 1.25158 ;; NSF DWEL
-    ;; for lambertian panel intensity scaled to 509
-    if dwel_cal_scale eq 1.0 then dwel_cal_scale = 3.629
+    if strcmp(laser_man, 'manlight', /fold_case) then begin
+      dwel_cal = 19242.474*3.808*laser_power/130.0 ;; NSF DWEL, for scaled intensity
+      rpow = 1.551 ;; NSF DWEL
+    endif 
+    if strcmp(laser_man, 'keopsys', /fold_case) then begin
+      
+    endif 
   endelse
   dwel_cal = dwel_cal*dwel_cal_scale
     
@@ -1881,7 +1937,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     Max_Z:Max_Z,$
     Min_Z:Min_Z,$
     Min_Intensity:Min_Intensity,$
-    Max_Intensity:Max_Intensity $
+    Max_Intensity:Max_Intensity,$
+    laser_man:laser_man $
     }
     
   pb_meta=ptr_new(meta_data,/no_copy)
