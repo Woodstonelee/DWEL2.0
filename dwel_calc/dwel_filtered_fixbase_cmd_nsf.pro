@@ -59,6 +59,20 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
 ;  envi_batch_init, /no_status_window
   ;
 
+  ; catch IDL error caused by this routine
+  catch, Error_status
+  ; once we catch an error, dump out the scan line and shot number so
+  ; that we can trace back directly to the bad waveform
+  if Error_status ne 0 then begin
+    catch, /cancel
+    print, 'Error message: ', !error_state.msg
+    print, 'Line, Y=', line_ind+1
+    print, 'Sample, X=', sample_ind+1
+    goto, cleanup
+  endif 
+  line_ind = -1
+  sample_ind = -1
+
   resolve_routine, 'DWEL_SET_THETA_PHI_NSF', /compile_full_file, /either
   resolve_routine, 'DWEL_ITPULSE_MODEL_DUAL_NSF', /compile_full_file, /either
   resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
@@ -954,11 +968,13 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
 
   if keyword_set(wire) then begin
     for i=0, nl_out-1 do begin
+      line_ind = i
       ;first get the data tile
       ;    data=envi_get_tile(tile_id,i)
       ;    data=envi_get_slice(fid=infile_fid, line=i, /bil)
+      pointsz=long64(i)*long64(bufrs)
       data=read_binary(inlun,data_start=pointsz,data_dims=[ns_out,nb_out],data_type=type)
-      pointsz=long64(pointsz)+long64(bufrs)
+      ;;pointsz=long64(pointsz)+long64(bufrs)
       pos_z=where(mask_all[*,i] eq 0,count_z)
       temp=float(data)
 
@@ -974,32 +990,51 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
       lambda = fltarr(ns_out)
       ;; resampled waveform data
       retemp = fltarr(ns_out, nb_resamp)
-      w_start_bin=fix((t_zerol[i]-0.4-pulse_width_range/8.0)/time_step)
+      w_start_bin=fix((t_zerol[i]-0.4-pulse_width_range/2.0)/time_step)
       w_end_bin=fix((t_zerol[i]-0.4+pulse_width_range/8.0)/time_step)
       for j = 0, ns_out-1 do begin
+        sample_ind = j
         if mask_all[j,i] eq 0 then begin
           continue
         endif 
         tmpwf = temp[j, *]
         tmpmax = max(tmpwf[w_start_bin:w_end_bin], tmpmaxI)
-        tmpind = w_start_bin + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
-        istat = peak_int(tmpind*time_step, tmpwf[tmpind], time_int, pulse_int, $
-          offset)
-        wire_tzero[j, i] = time_int
-        wire_max[j, i] = pulse_int
+        ;; in very rare cases, a waveform could miss the wire signal
+        ;; pulse
+        if tmpmax gt 3*mean_base_sig then begin
+          tmpind = w_start_bin + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
+          istat = peak_int(tmpind*time_step, tmpwf[tmpind], time_int, pulse_int, $
+            offset)
+          wire_tzero[j, i] = time_int
+          wire_max[j, i] = pulse_int
 
-        ;remove wire signal from waveform
-        ;get a pulse from the pulse model scaled by interpolated pulse peak
-        wire_pulse = interpol(pulse_int*pulse_model, p_time, $
-          p_time+tmpind[1]*time_step-time_int)
-        ;subtract this wire pulse from waveform
-        tmpwf[tmpind[1]-i_val[2]:tmpind[1]+i_val[n_elements(i_val)-1]-i_val[2]] = $
-          tmpwf[tmpind[1]-i_val[2]:tmpind[1]+i_val[n_elements(i_val)-1]-i_val[2]] $
-          - wire_pulse
+          ;remove wire signal from waveform
+          ;get a pulse from the pulse model scaled by interpolated pulse peak
+          wire_pulse = interpol(pulse_int*pulse_model, p_time, $
+            p_time+tmpind[1]*time_step-time_int)
+          ;subtract this wire pulse from waveform
+          tmpstart = tmpind[1]-i_val[2]
+          tmpend = tmpind[1]+i_val[n_elements(i_val)-1]-i_val[2]
+          if tmpstart lt 0 then begin
+            wire_pulse = wire_pulse[-1*tmpstart:n_elements(wire_pulse)-1]
+            tmpstart = 0
+          endif 
+          tmpwf[tmpstart:tmpend] = tmpwf[tmpstart:tmpend] - wire_pulse          
+          
+          wl_loc=fltarr(nb_out)
+          wl_loc=wl_range+cmreplicate(c2*(Tzero-wire_tzero[j, i]),nb_out)
+        endif else begin
+          print, 'Warning, detected intensity is too low to be accepted as wire signal'
+          print, 'Line (X)=', i+1
+          print, 'Sample (Y)=', j+1
+          print, 'Detected wire intensity=', tmpmax
+          wire_tzero[j, i]=0
+          wire_max[j, i]=0
+          wl_loc=fltarr(nb_out)
+          wl_loc=wl_range+cmreplicate(c2*(Tzero-t_zerol[i]),nb_out)
+        endelse 
 
         ;resample to new standard ranges
-        wl_loc=fltarr(nb_out)
-        wl_loc=wl_range+cmreplicate(c2*(Tzero-wire_tzero[j, i]),nb_out)
         posk=where(wl_loc lt 0.0,nposk)
         wlk=wl_loc[posk[nposk-1]]
         lambda[j]=-wlk/(time_step*c2)
@@ -1013,11 +1048,29 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
           print, 'Shot numbeer='+strtrim(string(j+1), 2)
           print,'Tzero,wire_tzero=',Tzero,wire_tzero[j, i]
           print, 'Tzero intensiyt=', strtrim(string(tmpmax), 2)
-          ;; mask_all[j,i] = 0
-          ;;continue
-          err_flag=1b
-          err=33
-          goto,cleanup
+          ;; now use average casing line Tzero if not so in last attemp
+          if wire_tzero[j, i] ne 0 then begin
+            wl_loc = 0b
+            wl_loc=fltarr(nb_out)
+            wl_loc=wl_range+cmreplicate(c2*(Tzero-t_zerol[i]),nb_out)
+            ;resample to new standard ranges
+            posk=where(wl_loc lt 0.0,nposk)
+            wlk=wl_loc[posk[nposk-1]]
+            lambda[j]=-wlk/(time_step*c2)
+            wl_new=wl_loc-wlk
+            posk=0b
+            posk=where((wl_new ge outrangemin) and (wl_new le $
+              outrangemax),nb_loc)
+          endif 
+          ;; now check the nb_loc and nb_resamp again
+          if (nb_loc ne nb_resamp) then begin
+            print, 'Average casing line Tzero failed resampling'
+            ;; mask_all[j,i] = 0
+            ;;continue
+            err_flag=1b
+            err=33
+            goto,cleanup
+          endif 
         endif 
         tmpwf = lambda * shift(tmpwf, -1) + (1.0 - lambda) * tmpwf
         retemp[j, *] = tmpwf[posk]      

@@ -351,6 +351,20 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   time_step=1.0/srate
   
   print,'time step=',time_step
+
+  ;Read the laser manufacturer from the scan info
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*lasers*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
+    laser_man = sf[1]
+  endif else begin
+    laser_man = 'manlight'
+  endelse
+  
+  print,'Laser manufacturer = '+strtrim(laser_man)
   
   ;input some planes of data from the ancillary file
   anc_data=lonarr(ns,nl,9)

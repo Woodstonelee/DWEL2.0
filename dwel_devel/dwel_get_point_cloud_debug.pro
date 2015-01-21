@@ -134,7 +134,7 @@ pro dwel_apply_ptcl_filter_debug, p, pb_stats, pb_meta, pb_info, error=error
   printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band',2)
   flush,tfile
   
-  ;see if the metadata file exists & remove if it does!
+  ;see if the metadata file exists & remove if it does! fdkkk jffffffffffff fdfdf
   if(file_test(mdata_file)) then begin
     fids=envi_get_file_ids()
     if(fids[0] eq -1) then begin

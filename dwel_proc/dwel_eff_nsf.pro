@@ -12,15 +12,15 @@ compile_opt idl2
 ; P_r(r) = \frac{C_0 \cdot \rho}{r^b} \cdot \frac{1}{ \left(
 ; 1+C_1\cdot e^{-C_2\cdot(r+C_3)} \right)^ {C_4} }
 if (wavelength eq 1064) then begin
-  c1=23889.281d0
-  c2=0.829d0
-  c3=21.574d0
+  c1=3413.743d0
+  c2=0.895d0
+  c3=15.640d0
   c4=c1
 endif
 if (wavelength eq 1548) then begin
-  c1=13.919d0
-  c2=0.527d0
-  c3=5.872d0
+  c1=5.133d0
+  c2=0.646d0
+  c3=1.114d0
   c4=c1
 endif
 zero=1.0d0/(1.0d0+double(c1)*exp(-double(c2)*double(c3)))^c4

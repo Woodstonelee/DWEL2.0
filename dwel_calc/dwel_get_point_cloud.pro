@@ -175,6 +175,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   printf,mfile,'Processing_Date_Time='+strtrim((*pb_meta).Processing_Date_Time,2)
   printf,mfile,'Run_Number='+strtrim(string((*pb_meta).Run_Number),2)
   printf,mfile,'Description='+strtrim((*pb_meta).Description,2)
+  printf,mfile,'Lasers='+strtrim((*pb_meta).laser_man,2)
+  printf,mfile,'Wire_Flag='+strtrim(string((*pb_meta).wire_flag,format='(f10)'),2)
   printf,mfile,'Input_Path='+strtrim((*pb_meta).Input_Path,2)
   printf,mfile,'Input_File='+strtrim((*pb_meta).Input_File,2)
   printf,mfile,'Acquisition_Date_Time=',strtrim((*pb_meta).Acquisition_Date_Time,2)
@@ -203,7 +205,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   printf,mfile,'Y_offset='+strtrim(string((*pb_meta).Y_offset,format='(f10.3)'),2)
   printf,mfile,'Z_offset='+strtrim(string((*pb_meta).Z_offset,format='(f10.3)'),2)
   printf,mfile,'I_Scale='+strtrim(string((*pb_meta).I_Scale,format='(f10.3)'),2)
-  
+
   flush,mfile
   
   ; Get path and file name as separate strings
@@ -1178,8 +1180,13 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   tmask=(*pb_stats).mask
   
   ;get d-stats
-  image_statistics,d_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-  d_accum[pos_mask]=4095.0*(d_accum[pos_mask]-emin)/(emax-emin)
+  d_accum = d_accum * i_scale
+  image_statistics, d_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
+  emin = emin / float(i_scale)
+  emax = emax / float(i_scale)
+  emean = emean / float(i_scale)
+  esdev = esdev / float(i_scale)
+;;  d_accum[pos_mask]=4095.0*(d_accum[pos_mask]-emin)/(emax-emin)
   print,'mean corrected intensity=',emean
   
   pb_info=[$
@@ -1192,7 +1199,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get d-stats
   image_statistics,d0_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-  d0_accum[pos_mask]=4095.0*(d0_accum[pos_mask]-emin)/(emax-emin)
+;;  d0_accum[pos_mask]=4095.0*(d0_accum[pos_mask]-emin)/(emax-emin)
   print,'mean corrected uncalibrated intensity=',emean
   
   pb_info=[pb_info,$
@@ -1204,7 +1211,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get I stats
   image_statistics,sum_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-  sum_accum[pos_mask]=4095.0*(sum_accum[pos_mask]-emin)/(emax-emin)
+;;  sum_accum[pos_mask]=4095.0*(sum_accum[pos_mask]-emin)/(emax-emin)
   print,'mean I sum=',emean
   
   pb_info=[pb_info,$
@@ -1216,7 +1223,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get I2 stats
   image_statistics,i2_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-  i2_accum[pos_mask]=4095.0*(i2_accum[pos_mask]-emin)/(emax-emin)
+;;  i2_accum[pos_mask]=4095.0*(i2_accum[pos_mask]-emin)/(emax-emin)
   print,'mean I2 sum=',emean
   
   pb_info=[pb_info,$
@@ -1239,7 +1246,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get residual stats
   image_statistics,resid,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-  resid[pos_mask]=4095.0*(resid[pos_mask]-emin)/(emax-emin)
+;;  resid[pos_mask]=4095.0*(resid[pos_mask]-emin)/(emax-emin)
   print,'mean Residual=',emean
   
   pb_info=[pb_info,$
@@ -1403,7 +1410,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     sdevfac:2.0, $
     r_thresh:0.175, $
     sievefac:10.0, $
-    dwel_cal_scale:1.0}
+    dwel_cal_scale:1.0, $
+    wire_flag:1.0}
   ;; tag names we need in settings
   setting_tag_names = tag_names(finalsettings)
   if n_elements(settings) ne 0 or arg_present(settings) then begin
@@ -1441,6 +1449,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   r_thresh=finalsettings.r_thresh
   sievefac=finalsettings.sievefac
   dwel_cal_scale=finalsettings.dwel_cal_scale
+  wire_flag=finalsettings.wire_flag
   
   ;test a little
   
@@ -1642,7 +1651,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     endelse
   endif else begin
     for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-      if (strmatch(DWEL_headers.DWEL_scan_info[i],'*power1064*')) then match=i
+      if (strmatch(DWEL_headers.DWEL_scan_info[i],'*power1548*')) then match=i
     endfor
     if (match ge 0) then begin
       sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
@@ -1658,19 +1667,39 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;are interpolated or extrapolated
   if (wavelength eq 1064) then begin
     if strcmp(laser_man, 'manlight', /fold_case) then begin
-      dwel_cal = 10591.354*2.010*laser_power/1300.0 ;; NSF DWEL, for scaled intensity
-      rpow = 1.545 ;; NSF DWEL
+      if wire_flag then begin ;; calibration parameters for scans with wire
+        ;; NSF DWEL, for scaled intensity
+        ;; estimated from stationary panel scans with wire
+        ;; 10591.354 is the constant from unscaled return intensity DN
+        ;; 2.305 is the nominal scale factor by onboard lambertian target
+        ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
+        ;; 1300 is the laser power setting of calibration scans.
+        dwel_cal = 5863.906*0.984807753*2.305 
+        rpow = 1.402 ;; NSF DWEL
+      endif else begin
+        ;; add something
+      endelse 
     endif 
     if strcmp(laser_man, 'keopsys', /fold_case) then begin
-      
+      ;; add something
     endif 
   endif else begin
     if strcmp(laser_man, 'manlight', /fold_case) then begin
-      dwel_cal = 19242.474*3.808*laser_power/130.0 ;; NSF DWEL, for scaled intensity
-      rpow = 1.551 ;; NSF DWEL
+      if wire_flag then begin ;; calibration parameters for scans with wire
+        ;; NSF DWEL, for scaled intensity
+        ;; estimated from stationary panel scans with wire
+        ;; 10591.354 is the constant from unscaled return intensity DN
+        ;; 2.305 is the nominal scale factor by onboard lambertian target
+        ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
+        ;; 1300 is the laser power setting of calibration scans.
+        dwel_cal = 20543.960*0.984807753*2.773
+        rpow = 1.566 ;; NSF DWEL
+      endif else begin
+        ;; add something
+      endelse 
     endif 
     if strcmp(laser_man, 'keopsys', /fold_case) then begin
-      
+      ;; add something
     endif 
   endelse
   dwel_cal = dwel_cal*dwel_cal_scale
@@ -1938,7 +1967,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     Min_Z:Min_Z,$
     Min_Intensity:Min_Intensity,$
     Max_Intensity:Max_Intensity,$
-    laser_man:laser_man $
+    laser_man:laser_man,$
+    wire_flag:wire_flag $
     }
     
   pb_meta=ptr_new(meta_data,/no_copy)

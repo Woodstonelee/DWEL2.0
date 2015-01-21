@@ -257,7 +257,7 @@ function FakeDataCube, DWEL_MetaInfo, DataCube_File, Wavelength, AncillaryFile
     
 end
 
-pro dwel_static_hdf2cube, instathdf5file, outcubefile, wavelength, $
+pro dwel_static_hdf2cube, instathdf5file, Config_File, outcubefile, wavelength, $
   wavelength_label, DWEL_Height, beam_div, srate, nsample=nsample
 
   compile_opt idl2
@@ -304,6 +304,16 @@ pro dwel_static_hdf2cube, instathdf5file, outcubefile, wavelength, $
   i2=strpos(seek,'.hdf5')
   date_time=strmid(seek,i1+1,i2-i1-1)
   print,'Date_Time=',date_time
+
+  istat=dwel_get_config_info(Config_File,Config_Info,consum)
+  if (istat gt 0) then begin
+    print,'error in call to dwel_get_config_info'
+    consum=''
+    config_info=['']
+    err_flag=2
+    goto,out
+  endif
+  print,'consum=',consum
     
   Name_Info=['Program=dwel2cube_cmd_nsf',$
     'Original DWEL HDF File='+strtrim(f_base,2)]
@@ -323,7 +333,7 @@ pro dwel_static_hdf2cube, instathdf5file, outcubefile, wavelength, $
     'Data Start='+strtrim(string(0),2),$
     'Actual scans completed='+strtrim(string(DWEL_MetaInfo.TotalNoScans),2)]
     
-  DWEL_Scan_Info=[Name_Info,Site_Info,Scan_Info,Post_Info]
+  DWEL_Scan_Info=[Name_Info,Site_Info,Scan_Info,Post_Info,Config_Info]
   
   if (DWEL_Height ge 0) then $
     DWEL_Scan_Info=[DWEL_Scan_Info,'DWEL Height='+strtrim(DWEL_Height,2)]
