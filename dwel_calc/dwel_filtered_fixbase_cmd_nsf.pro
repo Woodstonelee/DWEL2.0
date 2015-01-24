@@ -987,7 +987,6 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
       temp=scale_mean*temp
       
       ;; get Tzero for each individual waveform from wire signal
-      lambda = fltarr(ns_out)
       ;; resampled waveform data
       retemp = fltarr(ns_out, nb_resamp)
       w_start_bin=fix((t_zerol[i]-0.4-pulse_width_range/2.0)/time_step)
@@ -1037,7 +1036,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
         ;resample to new standard ranges
         posk=where(wl_loc lt 0.0,nposk)
         wlk=wl_loc[posk[nposk-1]]
-        lambda[j]=-wlk/(time_step*c2)
+        lambda=-wlk/(time_step*c2)
         wl_new=wl_loc-wlk
         posk=0b
         posk=where((wl_new ge outrangemin) and (wl_new le outrangemax),nb_loc)
@@ -1056,7 +1055,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
             ;resample to new standard ranges
             posk=where(wl_loc lt 0.0,nposk)
             wlk=wl_loc[posk[nposk-1]]
-            lambda[j]=-wlk/(time_step*c2)
+            lambda=-wlk/(time_step*c2)
             wl_new=wl_loc-wlk
             posk=0b
             posk=where((wl_new ge outrangemin) and (wl_new le $
