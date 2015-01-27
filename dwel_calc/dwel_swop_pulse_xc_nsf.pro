@@ -186,15 +186,11 @@ pro dwel_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_tweak, $
   print, 'Start re-fixing cross-correlation results and write update file ...' 
 
   if keyword_set(wire) then begin
-    dwel_filtered_fixbase_wire_oz, outcube_filter, AncillaryFile, outupdatedfile, $
+    dwel_filtered_fixbase_cmd_nsf, outcube_filter, AncillaryFile, outupdatedfile, $
       get_info_stats, zen_tweak, ierr, /wire
-;    dwel_filtered_fixbase_cmd_nsf, outcube_filter, AncillaryFile, outupdatedfile, $
-;      get_info_stats, zen_tweak, ierr, /wire
   endif else begin
-    dwel_filtered_fixbase_wire_oz, outcube_filter, AncillaryFile, outupdatedfile, $
+    dwel_filtered_fixbase_cmd_nsf, outcube_filter, AncillaryFile, outupdatedfile, $
       get_info_stats, zen_tweak, ierr
-;    dwel_filtered_fixbase_cmd_nsf, outcube_filter, AncillaryFile, outupdatedfile, $
-;      get_info_stats, zen_tweak, ierr
   endelse 
     
   if (ierr gt 0) then begin
