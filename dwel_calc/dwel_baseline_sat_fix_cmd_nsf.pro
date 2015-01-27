@@ -3,7 +3,7 @@
 ;; Created in 2013 by Zhan Li
 ;; Last modified: 20140603 by Zhan Li
 
-pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_name, Casing_Range, Casing_Type, get_info_stats, zen_tweak, err, wire=wire, settings=settings
+pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_name, Casing_Range, Casing_Type, get_info_stats, zen_tweak, err, wire=wire, settings=settings
 ;+
 ;PURPOSE:
 ;; Fix baseline and saturation of a DWEL data cube. 
@@ -46,11 +46,17 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
 ;; settings = structure, one pair of tag and value gives a user-defined value of
 ;; one setting. The available tag names of settings and their values are, 
 ;; 'out_of_pulse', integer, the bin location where you are free of casing
-;; returns in a waveform. It is used to estimate mean baseline. 
+;; returns in a waveform. It is used to estimate mean baseline. Default value =
+;; 200. 
+;; THE FOLLOWING TWO SETTINGS ARE REMOVED AND NOT AVAILABLE ANY MORE.
 ;; 'casing2Tzero', numerical, the distance between the scan mirror center and
 ;; the casing area provided by Casing_Range. If your Casing_Range is NOT
 ;; centered at nadir (upper limit is not 180 degrees), you MUST update this
-;; setting with a correct value. 
+;; setting with a correct value. Default, no setting.  
+;; 'wire2Tzero', numerical, the distance between the scan mirror center and the
+;; wire if the wire is present. This value is not actually used in this step but
+;; will be recorded in the header file and starts to be used in the next step of
+;; filtered post-fix processing. Default, no setting.
 ;;
 ;RETURNS:
 ;; None.
@@ -122,16 +128,22 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
 
   finalsettings = { bsfixsettings, $
     ; position where you are free of the casing effects - for mean baseline
-    out_of_pulse:200, $
-    ;distance from casing (edge of casing) to the true Tzero position at mirror,
-    ;unit=metres 
-    casing2Tzero:0.065}
+    out_of_pulse:200}
+    ;; ;distance from casing (edge of casing) to the true Tzero position at mirror,
+    ;; ;unit=metres 
+    ;; casing2Tzero:0.055}
+    ;; ; distance between scan mirror center and the wire if present, unit=meters. 
+    ;; wire2Tzero:0.299}
   ;; if user provides settings
   if n_elements(settings) ne 0 or arg_present(settings) then begin
     finalsettings = update_struct_settings(finalsettings, settings)
   endif 
   out_of_pulse = finalsettings.out_of_pulse
-  casing2Tzero = finalsettings.casing2Tzero
+  ;; casing2Tzero = finalsettings.casing2Tzero
+  ;; wire2Tzero = finalsettings.wire2Tzero
+
+  casing2Tzero = 0.055 ; unit, meter, default is for NSF
+
   ;======================================================================
   
   print,'pulse_width_range='+strtrim(string(pulse_width_range),2)
@@ -306,6 +318,9 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
     laser_man = 'manlight'
   endelse  
   print,'Laser manufacturer = '+strtrim(laser_man)
+  if strcmp(laser_man, 'keopsys', /fold_case) then begin
+    casing2Tzero = 0.065 ; unit, meter
+  endif 
   
   ;input some planes of data from the ancillary file
   anc_data=lonarr(ns,nl,9)
@@ -355,8 +370,8 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
       text=strtrim(info[match],2)
       print,'text=',text
       k=strpos(text,'=')
-      print,'extract=',strtrim(strmid(text,k+1,strlen(text)-1-k),2)
-      zenenc=fix(strtrim(strmid(text,k+1,strlen(text)-1-k),2), type=3)
+      print,'extract=',strtrim(strmid(text,k+1),2)
+      zenenc=fix(strtrim(strmid(text,k+1),2), type=3)
     endif
     print, 'Extracted ZenEnc = '+strtrim(string(zenenc), 2)
   endelse
@@ -615,8 +630,7 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
   nt=n_elements(pulse)
   maxpulse=max(reform(pulse[before_casing:nt-1]),nct)
   kmax=before_casing+nct
-  
-  
+    
   help,pulse
   ;maxpulse=max(pulse,kmax)
   print,'kmax='+strtrim(string(kmax),2)
@@ -717,6 +731,9 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
       scale_mean=mean(sm_line_scale[pos_sav],/double)
       scale_cv=stddev(sm_line_scale[pos_sav],/double)
       scale_cv=100.0*scale_cv/scale_mean
+      old_scale_mean=mean(line_scale[pos_sav],/double)
+      old_scale_cv=stddev(line_scale[pos_sav],/double)
+      old_scale_cv=100.0*old_scale_cv/old_scale_mean
     endif else begin
       casing_mean=0.0
       casing_stdev=0.0
@@ -729,28 +746,33 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
       off_cv=0.0
       scale_mean=1.0
       scale_cv=0.0
+      old_scale_mean=1.0
+      old_scale_cv=0.0
     endelse
     printf,ctfile,'Stats,Mean,CV(%)'
-    outstring='Base_Stats='+strtrim(string(mean_base,format='(f14.3)'),2)+','+ $
+    outstring='Base_Stats(DN)='+strtrim(string(mean_base,format='(f14.3)'),2)+','+ $
       strtrim(string(cv_base,format='(f14.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    outstring='Casing_Stats='+strtrim(string(casing_mean,format='(f14.3)'),2)+','+ $
+    outstring='Casing_Stats(DN)='+strtrim(string(casing_mean,format='(f14.3)'),2)+','+ $
       strtrim(string(casing_cv,format='(f14.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    outstring='Pos_Stats='+strtrim(string(pos_mean,format='(f14.3)'),2)+','+ $
+    outstring='Pos_Stats(Bin)='+strtrim(string(pos_mean,format='(f14.3)'),2)+','+ $
       strtrim(string(pos_cv,format='(f14.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    outstring='Offset_Stats='+strtrim(string(off_mean,format='(f14.3)'),2)+','+ $
+    outstring='Offset_Stats(DN)='+strtrim(string(off_mean,format='(f14.3)'),2)+','+ $
       strtrim(string(off_cv,format='(f14.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    outstring='Scale_Stats='+strtrim(string(scale_mean,format='(f14.3)'),2)+','+ $
+    outstring='Scale_Stats='+strtrim(string(old_scale_mean,format='(f14.3)'),2)+','+ $
+      strtrim(string(old_scale_cv,format='(f14.2)'),2)
+    printf,ctfile,strtrim(outstring,2)
+    outstring='sm_Scale_Stats='+strtrim(string(scale_mean,format='(f14.3)'),2)+','+ $
       strtrim(string(scale_cv,format='(f14.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    outstring='Mean Casing_Total='+strtrim(string(casing_power,format='(f14.2)'),2)
+    outstring='Mean Casing_Total(DN)='+strtrim(string(casing_power,format='(f14.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    outstring='Casing_fwhm='+strtrim(string(casing_fwhm,format='(f14.2)'),2)
+    outstring='Casing_fwhm(ns)='+strtrim(string(casing_fwhm,format='(f14.2)'),2)
     printf,ctfile,strtrim(outstring,2)
-    printf,ctfile,'Line_Num,Casing_Num,Casing_Max_Val,Casing_Max_Pos,Offset,Line_Scale,Casing_Total,Casing_FWHM,Sm_Casing_Max_Val,Sm_Line_Scale'
+    printf,ctfile,'Line_Num,Casing_Num,Casing_Max_Val(DN),Casing_Max_Pos(Bin),Offset(DN),Line_Scale,Casing_Total(DN),Casing_FWHM(ns),sm_Casing_Max_Val(DN),sm_Line_Scale'
     flush, ctfile
     ;
     for i=0L,nl-1L do begin
@@ -1080,12 +1102,7 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
       
     print,'wire_fwhm='+strtrim(wire_fwhm,2)
     
-    ;; ***************************************************************************
-    ;; Correct the line scale factor, subtract wire max from casing max
-    ;; first smooth the return intensities from wire over scan lines
-    ;; with clean_line function which does gap filling, median filtering and
-    ;; Gaussian filtering to remove any possible noise or deviant in the mean
-    ;; wire returns from lines. 
+    ;; get smoothed wire max and see how it looks like. 
     valid_line=bytarr(nl)+1b
     pos_base=where(save_valid le 0,npos_base)
     if (npos_base gt 0) then begin
@@ -1093,16 +1110,6 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
     endif
     sm_wire_max = fltarr(nl)
     clean_line, save_tmax, valid_line, sm_wire_max, filtg5, err
-    ;; get scaling factor line by line to correct laser power variation
-    nu_sm_line_scale = target_dn / float(sm_casing_max - sm_wire_max)
-    ;; debug, see if there is any negative values after wire subtraction
-    neg_dewired_pos = where((sm_casing_max - sm_wire_max) le 0, nneg)
-    if nneg gt 0 then begin
-      print, 'Negative intensity at Tzero bin after wire subtraction!'
-      print, 'Number of lines with negative intensity = '+strtrim(string(nneg),2)
-      print, 'First line with negative intensity: '+strtrim(string(neg_dewired_pos[0]),2)
-      goto, cleanup
-    endif 
 
     ;make space again
     sum=0b
@@ -1183,23 +1190,23 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
       endelse
       printf,ctfile,'Number of lines used in stats='+strtrim(string(npos_sav),2)
       printf,ctfile,'Stats,Mean,CV(%)'
-      outstring='Base_Stats='+strtrim(string(mean_base,format='(f14.3)'),2)+','+ $
+      outstring='Base_Stats(DN)='+strtrim(string(mean_base,format='(f14.3)'),2)+','+ $
         strtrim(string(cv_base,format='(f14.2)'),2)
       printf,ctfile,strtrim(outstring,2)
-      outstring='Wire_Stats='+strtrim(string(wire_mean,format='(f14.3)'),2)+','+ $
+      outstring='Wire_Stats(DN)='+strtrim(string(wire_mean,format='(f14.3)'),2)+','+ $
         strtrim(string(wire_cv,format='(f14.2)'),2)
       printf,ctfile,strtrim(outstring,2)
-      outstring='Pos_Stats='+strtrim(string(pos_mean,format='(f14.3)'),2)+','+ $
+      outstring='Pos_Stats(Bin)='+strtrim(string(pos_mean,format='(f14.3)'),2)+','+ $
         strtrim(string(pos_cv,format='(f14.2)'),2)
       printf,ctfile,strtrim(outstring,2)
-      outstring='Offset_Stats='+strtrim(string(off_mean,format='(f14.3)'),2)+','+ $
+      outstring='Offset_Stats(DN)='+strtrim(string(off_mean,format='(f14.3)'),2)+','+ $
         strtrim(string(off_cv,format='(f14.2)'),2)
       printf,ctfile,strtrim(outstring,2)
-      outstring='wire_total='+strtrim(string(wire_power,format='(f14.2)'),2)
+      outstring='wire_total(DN)='+strtrim(string(wire_power,format='(f14.2)'),2)
       printf,ctfile,strtrim(outstring,2)
-      outstring='wire_fwhm='+strtrim(string(wire_fwhm,format='(f14.2)'),2)
+      outstring='wire_fwhm(ns)='+strtrim(string(wire_fwhm,format='(f14.2)'),2)
       printf,ctfile,strtrim(outstring,2)
-      printf,ctfile,'Line_Num,Wire_Num,Wire_Max_Val,Wire_Max_Pos,Offset,Wire_Mean_Max,Wire_Power,Wire_FWHM,Sm_Wire_Max_Val,DeWired_Line_Scale'
+      printf,ctfile,'Line_Num,Wire_Num,Wire_Max_Val(DN),Wire_Max_Pos(Bin),Offset(DN),Wire_Mean_Max(DN),Wire_Power(DN),Wire_FWHM(ns),sm_Wire_Max_Val(DN)'
       flush, ctfile
       ;
       for i=0L,nl-1L do begin
@@ -1211,8 +1218,7 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
           strtrim(string(save_w[5,i],format='(f14.3)'),2)+','+ $
           strtrim(string(save_w[6,i],format='(f14.3)'),2)+','+ $
           strtrim(string(save_w[7,i],format='(f14.3)'),2)+','+ $
-          strtrim(string(sm_wire_max[i],format='(f14.3)'),2)+','+ $
-          strtrim(string(nu_sm_line_scale[i],format='(f14.3)'),2)
+          strtrim(string(sm_wire_max[i],format='(f14.3)'),2)
         ;
         printf,ctfile,outstring
       endfor
@@ -1323,7 +1329,6 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
     'Pulse='+strtrim(pulse_model_name,2),$
     'Wire_Flag='+strtrim(string(wire,format='(i14)'),2),$
     'Comment=Tzero is the time at which the peak of the output pulse occurs',$
-    'Casing2Tzero='+strtrim(string(casing2Tzero,format='(f14.3)'),2),$
     'Tzero='+strtrim(string(Tzero,format='(f14.3)'),2),$
     'srate='+strtrim(string(srate,format='(f14.2)'),2),$
     'out_of_pulse='+strtrim(string(out_of_pulse,format='(i14)'),2),$
@@ -1491,7 +1496,7 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
       for si=0,count_sat-1 do begin
         unsattemp=reform(temp[sat_pos[si], *])
         if keyword_set(wire) then savewire=unsattemp[pos_stime]
-        satflag = apply_sat_fix_nsf(reform(temp[sat_pos[si], *]), pulse_model, i_val, nu_sm_line_scale[i], satfixedwf=unsattemp)
+        satflag = apply_sat_fix_nsf(reform(temp[sat_pos[si], *]), pulse_model, i_val, scale_mean, satfixedwf=unsattemp)
         if (satflag lt 2) then sat_mask[sat_pos[si],i]=1
         if (satflag le 0) then begin
           totbad=long(totbad)+1L
@@ -1512,8 +1517,11 @@ pro DWEL_Baseline_Sat_Fix_wire_oz, DWELCubeFile, ancillaryfile_name, out_satfix_
     satfixeddata=0b
     
     ;======================================================================
+    ;; here only use scale_mean to scale the data overall. The line-by-line
+    ;; scaling is done in next fixbase stage because it is easier to deal with
+    ;; wire if wire is present. 
     temp=temp-transpose(baseline)##one_ns
-    temp=nu_sm_line_scale[i]*temp*(transpose(runin_mask)##one_ns)
+    temp=scale_mean*temp*(transpose(runin_mask)##one_ns)
     
     ;mask may have changed now
     pos_z=where(mask_all[*,i] eq 0,count_z)

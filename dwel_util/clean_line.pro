@@ -56,6 +56,12 @@ pro clean_line, inline,val_point,outline,filt,err
   endif else begin
     outline=float(inline)
   endelse
+
+  ;; temp=[replicate(outline[0],2*frad),float(outline),replicate(outline[npoint-1],2*frad)]
+  ;; temp=median(temp,flen,/double)
+  ;; temp=convol(temp,filt)
+  ;; outline=temp[2*frad:npoint+2*frad-1]
+
   ;
   ;; flen is usually too small for median filter to remove noise. There could be
   ;; five adjacent bins of abnormal values in DWEL (NSF) data. A flen of 20 is

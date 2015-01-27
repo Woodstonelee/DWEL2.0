@@ -7,6 +7,9 @@ function peak_int, x,y,x_int,y_int,offset
   ;In addition we assume x[0]<x[1]<x[2] and x_int is in the x range
   ;The peak needs the coefficient of x^2 at y[1] to be negative and
   ;we believe the interpolated value should be larger than the current maximum
+
+  x = reform(x)
+  y = reform(y)
   
   x_int=x[1]
   y_int=y[1]
