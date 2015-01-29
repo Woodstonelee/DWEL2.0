@@ -22,7 +22,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   ;set local parameters
   num_test=2
   test_num=20
-  range_extent=5.0
+  range_extent=5.0 ; unit, meter, half extent for pulse integral calculation
   noise_hits=10
   
   ;set height and width sieve
@@ -52,7 +52,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   infile=(*pb_stats).infile
   if ((*pb_meta).Zero_Hit_Option) then add='_addgap' else add=''
   if ((*pb_meta).Add_DWEL) then add=add+'_adddwel' else add=add+''
-  
+
   laser_man = (*pb_meta).laser_man
 
   cvthresh=threshold/512.0
@@ -133,7 +133,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   printf,tfile,strtrim('[DWEL Point Cloud Data]',2)
   printf,tfile,strtrim('Run made at: '+time_date,2)
-  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,I,FWHM',2)
+  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,FWHM',2)
   flush,tfile
   
   ;see if the metadata file exists & remove if it does!
@@ -597,7 +597,10 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     error=9
     goto,cleanup
   endif
-  
+
+  pulse = (*pb_stats).pulse
+  p_range = (*pb_stats).p_range
+  pulse_len = n_elements(pulse)
   ;set up the pointer for read_binary
   bufrs=long64(nbytes)*long64(nbands)*long64(nsamples)
   pointsz=long64(0)
@@ -1021,15 +1024,35 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           mean_z[j,i]=range_mean[j,i]*cos(th*!dtor)+(*pb_meta).DWEL_Height
         endelse
         
+        return_fwhm = 0b
         return_fwhm = fltarr(nump_new)
         ; now calculate integral of return pulse of each point and the FWHM
         for k=0,nump_new-1 do begin
-          range_left=(*pb_stats).range[peaks[k]]-range_extent
-          range_right=(*pb_stats).range[peaks[k]]+range_extent
-          posext=where(((*pb_stats).range ge range_left) and ((*pb_stats).range $
-            le range_right),nposext)
+          ;; to see if there is another peak in close range within the range
+          ;; extent of integral          
+          range_left=rg[k]-range_extent*2
+          range_right=rg[k]+range_extent*2
+          cpind = where(rg gt range_left and rg lt range_right, ncp)
+          if ncp gt 0 then tmpind = where(cpind ne k, ncp)
+          ;;inline is scaled by i_scale, need to de-scale here.
+          tmpwf = inline[j, *]/float(i_scale)
+          if ncp gt 0 then begin
+            cpind = cpind[tmpind]
+            for icp = 0, ncp-1 do begin
+              ;; subtract each close return pulse from the waveform before
+              ;; calculating integral of this peak
+              in_range = p_range + rg[cpind[icp]]
+              out_range_pos = indgen(pulse_len) + (peaks[cpind[icp]]-fix(pulse_len/2))
+              out_range = (*pb_stats).range[out_range_pos]
+              cp_out = interpol(d_out[cpind[icp]]*pulse, in_range, out_range)
+              tmpwf[out_range_pos] = tmpwf[out_range_pos] - cp_out
+            endfor
+          endif 
+          range_left=rg[k]-range_extent
+          range_right=rg[k]+range_extent
+          posext=where(((*pb_stats).range ge range_left) and ((*pb_stats).range le range_right),nposext)
           if nposext gt 0 then begin
-            return_fwhm[k] = total(inline[j, posext])/intensity[k]/i_scale
+            return_fwhm[k] = total(tmpwf[posext])/d_out[k]
           endif 
         endfor 
 
@@ -1038,7 +1061,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           x=rg[k]*sin(th*!dtor)*sin(ph*!dtor)
           y=rg[k]*sin(th*!dtor)*cos(ph*!dtor)
           z=rg[k]*cos(th*!dtor)+(*pb_meta).DWEL_Height
-          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,i_scale*intensity[k],return_fwhm[k],format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,2f14.3)')
+          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,return_fwhm[k],format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1069,7 +1092,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         resid[j,i]=0.0
         mean_z[j,i]=0.0
         if ((*pb_meta).zero_hit_option gt 0) then begin
-          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,2f14.3)')
+          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1395,7 +1418,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;; threshold to filter out noise points.
   finalsettings = { ptclsettings, $
     cal_dat:0, $
-    DWEL_az_n:0, $
+    DWEL_az_n:0, $ ; unit, deg
     runcode:round(systime(/julian)*10), $
     save_zero_hits:1, $
     add_dwel:0, $
@@ -2059,7 +2082,9 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     Dwel_cal:Dwel_cal,$
     rpow:rpow,$
     eff_par:eff_par,$
-    s_Factor:s_Factor}
+    s_Factor:s_Factor,$
+    pulse:pulse,$
+    p_range:p_range}
     
   pb_stats=ptr_new(base_stats,/no_copy)
   pb_info = ''
