@@ -1371,9 +1371,58 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
 end
 
 ;======================================================================
-;; settings is a structure variable containing all setting for point cloud
-;; generation. 
 pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
+;+
+;PURPOSE:
+;; Generate point cloud from DWEL data cube, either projected or unprojected
+;; after 1) baseline and saturation fix, 2) pulse correlation and 3) post
+;; baseline fix and laser power correction. 
+;;
+;INPUTS:
+;; infile = string, full file name of the input data cube of waveforms. 
+;;
+;; ancfile = string, full file name of the ancillary data.
+;;
+;; outfile = string, full file name of the output file/s, given this name, five
+;; files will be generated as a whole output package, 
+;; 1. outfile_points.txt, point cloud file
+;; 2. outfile_pulse.txt, file of pulse models used in point cloud generation. 
+;; 3. outfile_metadata.txt, meta data for the point cloud generation. 
+;; 4. outfile_pcinfo.txt, multi-layer image of AT projection of point cloud. 
+;; 5. outfile_pfilter.img, a synthesized clean waveform from extracted points.
+;;
+;OUTPUTS:
+;; err = integer, return error code of program running. 
+;;
+;KEYWORDS:
+;; Settings = structure, provide user-defined settings for point cloud
+;; generation rather than using the default settings. Current available
+;; settings (tag name of settings), 
+;; 'runcode': integer, set to a value to distinguish runs, default: the current
+;; Julian day*10.  
+;; 'add_dwel': byte, if 1, two points (0, 0, 0) and (0, 0, dwel_height) are
+;; recorded in generated point cloud for reference. Default: 0. 
+;; 'save_br': byte, if 1, save images of b and r. they are really really large
+;; bc they are image of doulbe floating values. Only save them when
+;; debugging. Default: 0. 
+;; 'save_pfilt': byte, if 1, save pfilter image. Default: 1. 
+;; 'zlow', 'zhigh', 'xmin', 'xmax', 'ymin', 'ymax': float, set a bounding box of
+;; limits for impossible or unnecessary points useful to remove impossible
+;; points. Default: -5, 50, -50, 50, -50, 50. 
+;; 'sdevfac': float, how many times of standard deviation of noise to determine
+;; a threshold to find peak candidates if above this threshold. Default: 2.
+;; 'r_thresh':, float, threshold to remove noise according to normalized cross
+;; correlation. Default: 0.175.
+;; 'sievefac': float, how many times of standard deviation of noise to determine
+;; a threshold to filter out extracted noise peaks. Default, 10.0.
+;; 'cal_par': array[6], a vector of calibration parameters, 
+;; [c0, c1, c2, c3, c4, b]. Default: use default values in the program. x 
+;;
+;RETURN:
+;; None. 
+;;
+;-
+;
 
   compile_opt idl2
 ;  envi, /restore_base_save_files
