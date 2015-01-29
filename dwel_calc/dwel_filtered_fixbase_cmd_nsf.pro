@@ -515,7 +515,9 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
       target_dn = 150.0
     endif
     if strcmp(Casing_Type, 'CASE', /fold_case) then begin
-      target_dn = 512.0 ;; WRONG!!! need update
+      ;; still use 512, need to manually provide calibration parameters in
+      ;; dwel_get_point_cloud       
+      target_dn = 512.0 
     endif 
   endif else begin
     target_dn = 509.0
@@ -523,7 +525,9 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
       target_dn = 75.0
     endif
     if strcmp(Casing_Type, 'CASE', /fold_case) then begin
-      target_dn = 509.0 ;; WRONG!!! need update
+      ;; still use 509, need to manually provide calibration parameters in
+      ;; dwel_get_point_cloud 
+      target_dn = 509.0 
     endif 
   endelse
   

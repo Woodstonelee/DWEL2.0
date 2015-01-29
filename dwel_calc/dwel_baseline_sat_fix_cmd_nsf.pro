@@ -382,7 +382,9 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
       target_dn = 150.0
     endif
     if strcmp(Casing_Type, 'CASE', /fold_case) then begin
-      target_dn = 512.0 ;; WRONG!!! need update
+      ;; still use 512, need to manually provide calibration parameters in
+      ;; dwel_get_point_cloud 
+      target_dn = 512.0 
     endif 
   endif else begin
     target_dn = 509.0
@@ -390,7 +392,9 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
       target_dn = 75.0
     endif
     if strcmp(Casing_Type, 'CASE', /fold_case) then begin
-      target_dn = 509.0 ;; WRONG!!! need update
+      ;; still use 509, need to manually provide calibration parameters in
+      ;; dwel_get_point_cloud 
+      target_dn = 509.0 
     endif 
   endelse
   
