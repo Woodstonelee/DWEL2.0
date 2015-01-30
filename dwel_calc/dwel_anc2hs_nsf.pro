@@ -178,7 +178,7 @@ pro dwel_anc2hs_nsf, DWEL_Anc_File, DWEL_HS_File, Max_Zenith_Angle, $
   ;; round of 524288 (2*pi) so that later angular calculation is easier.
   tmpdiff = tmpazim[0:nscans-2] - tmpazim[1:nscans-1]
   tmppos = where(tmpdiff lt -524288.0d0/2.0, tmpcount)
-  tmpazim = tmpazim[0:tmppos[0]] + 524288.0d0
+  tmpazim[0:tmppos[0]] = tmpazim[0:tmppos[0]] + 524288.0d0
   ;; calculate overlap azimuth range in the scan
   az_range = tmpazim[bad+1] - tmpazim[nscans-1-bad_end]
   scan_overlap = (az_range - 524288.0d0/2.0) / 524288.0d0 * 360.0
