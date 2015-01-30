@@ -7,7 +7,7 @@ function dwel_set_theta_phi_nsf, pstat,zen_tweak
   if tag_exist((*pstat), 'ZenEnc') then begin
     zenith_count = (*pstat).ZenEnc + long(zen_tweak)
   endif else begin
-    zenith_count = 392433L + long(zen_tweak) ; NSF DWEL
+    zenith_count = 392848L + long(zen_tweak) ; NSF DWEL
   endelse 
   
   ShotZen=fltarr((*pstat).NShots,(*pstat).Nscans)

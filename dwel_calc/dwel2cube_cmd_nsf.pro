@@ -275,7 +275,7 @@ pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
   
   endif else begin ; nadir shift value is not given, use default values
     
-    nadirelevshift = 392433 ; NSF DWEL
+    nadirelevshift = 392848 ; NSF DWEL
   endelse
   
   DWEL_MetaInfo = CheckDWEL(DWEL_H5File,Wavelength,nadirelevshift,err)

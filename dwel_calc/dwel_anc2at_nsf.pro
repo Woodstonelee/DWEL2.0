@@ -2,7 +2,7 @@
 ; Arrange pixels in array of zenith and azimuth angle instead of shot number and scan number
 
 pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
-    output_resolution, zen_tweak, err, Overlap=overlap
+    output_resolution, zen_tweak, err, Overlap=overlap, zenenc=zenenc
   ; Max_Zenith_Angle: in unit of degree
   ; output_resolution: in unit of mrad
   ; overlap: azimuth range of overlapping area, in unit of degree
@@ -141,6 +141,36 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
       endelse
     endelse
   endelse
+
+  if n_elements(zenenc) ne 0 or arg_present(zenenc) then begin
+    ;; user has provided a zenenc value
+    print, 'Use user-provided ZenEnc = '+strtrim(string(zenenc), 2)
+  endif else begin
+    ;; try to find zenenc from previous header file.
+    zenenc = []
+    ;; get some information for header file
+    DWEL_Adaptation = ENVI_GET_HEADER_VALUE(anc_fid, 'DWEL_Adaptation', undefined=undef)
+    ;; get laser wavelength
+    if undef then begin
+      DWEL_Adaptation = ''
+    endif else begin
+      ;; find scan encoder of zenith point from header information. If not found,
+      ;; then the default values in dwel_set_phi_theta will be used later.  
+      info = DWEL_Adaptation      
+      match = -1
+      for i=0,n_elements(info)-1 do begin
+        if (strmatch(info[i],'*Scan encoder of zenith point*', /fold_case)) then match=i
+      endfor
+      if match ge 0 then begin
+        text=strtrim(info[match],2)
+        print,'text=',text
+        k=strpos(text,'=')
+        print,'extract=',strtrim(strmid(text,k+1),2)
+        zenenc=fix(strtrim(strmid(text,k+1),2), type=3)
+      endif
+      print, 'Use extracted ZenEnc = '+strtrim(string(zenenc), 2)
+    endelse  
+  endelse 
   
   print,'Input information from input files complete'
   
@@ -178,7 +208,7 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;; round of 524288 (2*pi) so that later angular calculation is easier.
   tmpdiff = tmpazim[0:nscans-2] - tmpazim[1:nscans-1]
   tmppos = where(tmpdiff lt -524288.0d0/2.0, tmpcount)
-  tmpazim = tmpazim[0:tmppos[0]] + 524288.0d0
+  tmpazim[0:tmppos[0]] = tmpazim[0:tmppos[0]] + 524288.0d0
   ;; calculate overlap azimuth range in the scan
   az_range = tmpazim[bad+1] - tmpazim[nscans-1-bad_end]
   scan_overlap = (az_range - 524288.0d0/2.0) / 524288.0d0 * 360.0
@@ -252,14 +282,25 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;; pos=0b
   ;; print,'final sel=',sel
   ;; ;===========================================
-  
-  ;set up a structure and push it onto the heap
-  sav={ $
-    Nshots:nshots,$
-    Nscans:nscans,$
-    ShotZen:ShotZen,$
-    ShotAzim:ShotAzim $
-    }
+
+  if n_elements(zenenc) eq 0 then begin
+    ;set up a structure and push it onto the heap
+    sav={ $
+      Nshots:nshots,$
+      Nscans:nscans,$
+      ShotZen:ShotZen,$
+      ShotAzim:ShotAzim $
+      }
+  endif else begin
+    ;set up a structure and push it onto the heap
+    sav={ $
+      Nshots:nshots,$
+      Nscans:nscans,$
+      ShotZen:ShotZen,$
+      ShotAzim:ShotAzim, $
+      ZenEnc:zenenc $
+      }    
+  endelse 
     
   ;now put the data on the heap with a pointer
   p_stat=ptr_new(sav,/no_copy)
@@ -509,6 +550,11 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
     ]
   DWEL_Anc2AT_info=strtrim(DWEL_Anc2AT_info,2)
   
+  if n_elements(zenenc) ne 0 then begin
+    hdrstr = 'ZenEnc_(deg)='+strtrim(string(zenenc, format='(f10.3)'),2)
+    DWEL_Anc2AT_info=[DWEL_Anc2AT_info, hdrstr]
+  endif 
+
   ;all ready to go ... so get output file name[s]
   output_envi:
   
