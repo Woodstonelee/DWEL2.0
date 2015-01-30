@@ -1,13 +1,6 @@
 ; Simple AT projection of unprocessed data cube.
 ; Arrange pixels in array of zenith and azimuth angle instead of shot number and scan number
 
-pro dwel_val_block
-  pi_val=4.0*atan(1.0)
-  rad=pi_val/180.0
-  deg=1.0/rad
-  eta=1.0e-7
-end
-
 ; Max_Zenith_Angle: in unit of degree
 ; output_resolution: in unit of mrad
 ; overlap: azimuth range of overlapping area, in unit of degree
@@ -342,7 +335,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
     err_flag=1b
     goto, cleanup
   endif
-  
+
   ;get the input image dimensions and other info
   envi_file_query, anc_fid, ns=Nshots, nl=Nscans, nb=nb_anc
   
@@ -383,7 +376,56 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
     err_flag=1b
     goto, cleanup
   endif
-  
+
+  zenenc = -1
+  ;; get some information for header file
+  DWEL_Adaptation = ENVI_GET_HEADER_VALUE(anc_fid, 'DWEL_Adaptation', undefined=undef)
+  ;; get laser wavelength
+  if undef then begin
+    DWEL_Adaptation = ''
+    if (strpos(DWEL_headers.f_base, '1064') ne -1) then begin
+      wavelength = 1064
+    endif
+    if (strpos(DWEL_headers.f_base, '1548') ne -1) then begin
+      wavelength = 1548
+    endif
+  endif else begin
+    match = -1
+    info = DWEL_Adaptation
+    for i=0,n_elements(info)-1 do begin
+      if (strmatch(info[i],'*Wavelength*', /fold_case)) then match=i
+    endfor
+    if match ge 0 then begin
+      text=strtrim(info[match],2)
+      print,'text=',text
+      k=strpos(text,'=')
+      print,'extract=',strtrim(strmid(text,k+1,4),2)
+      wavelength=fix(strtrim(strmid(text,k+1,4),2))
+    endif else begin
+      if (strpos(DWEL_headers.f_base, '1064') ne -1) then begin
+        wavelength = 1064
+      endif
+      if (strpos(DWEL_headers.f_base, '1548') ne -1) then begin
+        wavelength = 1548
+      endif
+    endelse
+
+    ;; find scan encoder of zenith point from header information. If not found,
+    ;; then the default values in dwel_set_phi_theta will be used later.  
+    match = -1
+    for i=0,n_elements(info)-1 do begin
+      if (strmatch(info[i],'*Scan encoder of zenith point*', /fold_case)) then match=i
+    endfor
+    if match ge 0 then begin
+      text=strtrim(info[match],2)
+      print,'text=',text
+      k=strpos(text,'=')
+      print,'extract=',strtrim(strmid(text,k+1),2)
+      zenenc=fix(strtrim(strmid(text,k+1),2), type=3)
+    endif
+    print, 'Extracted ZenEnc = '+strtrim(string(zenenc), 2)
+  endelse  
+
   print,'Input information from input files complete'
   
   ;set output band number
@@ -515,13 +557,24 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   endelse
   
   ;===========================================
-  ;set up a structure and push it onto the heap
-  sav={ $
-    Nshots:Nshots,$
-    Nscans:Nscans,$
-    ShotZen:ShotZen,$
-    ShotAzim:ShotAzim $
-    }
+  if zenenc eq -1 then begin
+    ;set up a structure and push it onto the heap
+    sav={ $
+      Nshots:ns,$
+      Nscans:nl,$
+      ShotZen:ShotZen,$
+      ShotAzim:ShotAzim $
+      }
+  endif else begin
+    ;set up a structure and push it onto the heap
+    sav={ $
+      Nshots:ns,$
+      Nscans:nl,$
+      ShotZen:ShotZen,$
+      ShotAzim:ShotAzim, $
+      ZenEnc:zenenc $
+      }    
+  endelse 
     
   ;now put the data on the heap with a pointer
   p_stat=ptr_new(sav,/no_copy)
@@ -901,6 +954,15 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   ;
   DWEL_projection_info=[DWEL_projection_info, $
     'star_r2_Stats=('+strtrim(string(amin),2)+',' $
+    +strtrim(string(amean),2)+',' $
+    +strtrim(string(amax),2)+',' $
+    +strtrim(string(asdev),2)+')' $
+    ]
+
+  ;; get the average number of shots averaged in a projected bin
+  image_statistics,num_val,mask=mask,minimum=amin,maximum=amax,mean=amean,stddev=asdev
+  DWEL_projection_info=[DWEL_projection_info, $
+    'num_val_Stats=('+strtrim(string(amin),2)+',' $
     +strtrim(string(amean),2)+',' $
     +strtrim(string(amax),2)+',' $
     +strtrim(string(asdev),2)+')' $

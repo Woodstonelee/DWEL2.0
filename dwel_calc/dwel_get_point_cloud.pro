@@ -22,7 +22,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   ;set local parameters
   num_test=2
   test_num=20
-  range_extent=5.0
+  range_extent=5.0 ; unit, meter, half extent for pulse integral calculation
   noise_hits=10
   
   ;set height and width sieve
@@ -52,7 +52,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   infile=(*pb_stats).infile
   if ((*pb_meta).Zero_Hit_Option) then add='_addgap' else add=''
   if ((*pb_meta).Add_DWEL) then add=add+'_adddwel' else add=add+''
-  
+
   laser_man = (*pb_meta).laser_man
 
   cvthresh=threshold/512.0
@@ -133,7 +133,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   printf,tfile,strtrim('[DWEL Point Cloud Data]',2)
   printf,tfile,strtrim('Run made at: '+time_date,2)
-  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,I,FWHM',2)
+  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,FWHM',2)
   flush,tfile
   
   ;see if the metadata file exists & remove if it does!
@@ -597,7 +597,10 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     error=9
     goto,cleanup
   endif
-  
+
+  pulse = (*pb_stats).pulse
+  p_range = (*pb_stats).p_range
+  pulse_len = n_elements(pulse)
   ;set up the pointer for read_binary
   bufrs=long64(nbytes)*long64(nbands)*long64(nsamples)
   pointsz=long64(0)
@@ -923,10 +926,10 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         ;Now calibrate the d values and get the ls_res (residual of LS) if required
         if ((*pb_stats).cal_dat and ~DWEL_AppRefl) then begin
           if strcmp(laser_man, 'manlight') then begin
-            eff=DWEL_eff_nsf(wavelength,rg)
+            eff=DWEL_eff_nsf(wavelength,rg, par=(*pb_stats).eff_par)
           endif
           if strcmp(laser_man, 'keopsys') then begin
-            eff=DWEL_eff_oz(wavelength,rg)
+            eff=DWEL_eff_oz(wavelength,rg, par=(*pb_stats).eff_par)
           endif
 
           temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/(eff*(*pb_stats).DWEL_cal)
@@ -944,10 +947,10 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           temp = 0b
 
           if strcmp(laser_man, 'manlight') then begin
-            eff=DWEL_eff_nsf(wavelength,(*pb_stats).range)
+            eff=DWEL_eff_nsf(wavelength,(*pb_stats).range, par=(*pb_stats).eff_par)
           endif
           if strcmp(laser_man, 'keopsys') then begin
-            eff=DWEL_eff_oz(wavelength,(*pb_stats).range)
+            eff=DWEL_eff_oz(wavelength,(*pb_stats).range, par=(*pb_stats).eff_par)
           endif
 
           rvalid = where((*pb_stats).range gt rmax, nvalid)
@@ -1021,15 +1024,35 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           mean_z[j,i]=range_mean[j,i]*cos(th*!dtor)+(*pb_meta).DWEL_Height
         endelse
         
+        return_fwhm = 0b
         return_fwhm = fltarr(nump_new)
         ; now calculate integral of return pulse of each point and the FWHM
         for k=0,nump_new-1 do begin
-          range_left=(*pb_stats).range[peaks[k]]-range_extent
-          range_right=(*pb_stats).range[peaks[k]]+range_extent
-          posext=where(((*pb_stats).range ge range_left) and ((*pb_stats).range $
-            le range_right),nposext)
+          ;; to see if there is another peak in close range within the range
+          ;; extent of integral          
+          range_left=rg[k]-range_extent*2
+          range_right=rg[k]+range_extent*2
+          cpind = where(rg gt range_left and rg lt range_right, ncp)
+          if ncp gt 0 then tmpind = where(cpind ne k, ncp)
+          ;;inline is scaled by i_scale, need to de-scale here.
+          tmpwf = inline[j, *]/float(i_scale)
+          if ncp gt 0 then begin
+            cpind = cpind[tmpind]
+            for icp = 0, ncp-1 do begin
+              ;; subtract each close return pulse from the waveform before
+              ;; calculating integral of this peak
+              in_range = p_range + rg[cpind[icp]]
+              out_range_pos = indgen(pulse_len) + (peaks[cpind[icp]]-fix(pulse_len/2))
+              out_range = (*pb_stats).range[out_range_pos]
+              cp_out = interpol(d_out[cpind[icp]]*pulse, in_range, out_range)
+              tmpwf[out_range_pos] = tmpwf[out_range_pos] - cp_out
+            endfor
+          endif 
+          range_left=rg[k]-range_extent
+          range_right=rg[k]+range_extent
+          posext=where(((*pb_stats).range ge range_left) and ((*pb_stats).range le range_right),nposext)
           if nposext gt 0 then begin
-            return_fwhm[k] = total(inline[j, posext])/intensity[k]/i_scale
+            return_fwhm[k] = total(tmpwf[posext])/d_out[k]
           endif 
         endfor 
 
@@ -1038,7 +1061,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           x=rg[k]*sin(th*!dtor)*sin(ph*!dtor)
           y=rg[k]*sin(th*!dtor)*cos(ph*!dtor)
           z=rg[k]*cos(th*!dtor)+(*pb_meta).DWEL_Height
-          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,i_scale*intensity[k],return_fwhm[k],format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,2f14.3)')
+          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,return_fwhm[k],format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1069,7 +1092,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         resid[j,i]=0.0
         mean_z[j,i]=0.0
         if ((*pb_meta).zero_hit_option gt 0) then begin
-          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,2f14.3)')
+          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1348,9 +1371,58 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
 end
 
 ;======================================================================
-;; settings is a structure variable containing all setting for point cloud
-;; generation. 
 pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
+;+
+;PURPOSE:
+;; Generate point cloud from DWEL data cube, either projected or unprojected
+;; after 1) baseline and saturation fix, 2) pulse correlation and 3) post
+;; baseline fix and laser power correction. 
+;;
+;INPUTS:
+;; infile = string, full file name of the input data cube of waveforms. 
+;;
+;; ancfile = string, full file name of the ancillary data.
+;;
+;; outfile = string, full file name of the output file/s, given this name, five
+;; files will be generated as a whole output package, 
+;; 1. outfile_points.txt, point cloud file
+;; 2. outfile_pulse.txt, file of pulse models used in point cloud generation. 
+;; 3. outfile_metadata.txt, meta data for the point cloud generation. 
+;; 4. outfile_pcinfo.txt, multi-layer image of AT projection of point cloud. 
+;; 5. outfile_pfilter.img, a synthesized clean waveform from extracted points.
+;;
+;OUTPUTS:
+;; err = integer, return error code of program running. 
+;;
+;KEYWORDS:
+;; Settings = structure, provide user-defined settings for point cloud
+;; generation rather than using the default settings. Current available
+;; settings (tag name of settings), 
+;; 'runcode': integer, set to a value to distinguish runs, default: the current
+;; Julian day*10.  
+;; 'add_dwel': byte, if 1, two points (0, 0, 0) and (0, 0, dwel_height) are
+;; recorded in generated point cloud for reference. Default: 0. 
+;; 'save_br': byte, if 1, save images of b and r. they are really really large
+;; bc they are image of doulbe floating values. Only save them when
+;; debugging. Default: 0. 
+;; 'save_pfilt': byte, if 1, save pfilter image. Default: 1. 
+;; 'zlow', 'zhigh', 'xmin', 'xmax', 'ymin', 'ymax': float, set a bounding box of
+;; limits for impossible or unnecessary points useful to remove impossible
+;; points. Default: -5, 50, -50, 50, -50, 50. 
+;; 'sdevfac': float, how many times of standard deviation of noise to determine
+;; a threshold to find peak candidates if above this threshold. Default: 2.
+;; 'r_thresh':, float, threshold to remove noise according to normalized cross
+;; correlation. Default: 0.175.
+;; 'sievefac': float, how many times of standard deviation of noise to determine
+;; a threshold to filter out extracted noise peaks. Default, 10.0.
+;; 'cal_par': array[6], a vector of calibration parameters, 
+;; [c0, c1, c2, c3, c4, b]. Default: use default values in the program. x 
+;;
+;RETURN:
+;; None. 
+;;
+;-
+;
 
   compile_opt idl2
 ;  envi, /restore_base_save_files
@@ -1395,7 +1467,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;; threshold to filter out noise points.
   finalsettings = { ptclsettings, $
     cal_dat:0, $
-    DWEL_az_n:0, $
+    DWEL_az_n:0, $ ; unit, deg
     runcode:round(systime(/julian)*10), $
     save_zero_hits:1, $
     add_dwel:0, $
@@ -1410,8 +1482,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     sdevfac:2.0, $
     r_thresh:0.175, $
     sievefac:10.0, $
-    dwel_cal_scale:1.0, $
-    wire_flag:1.0}
+    cal_par:[-1,-1,-1,-1,-1,-1] $ ;[c0, c1, c2, c3, c4, b]
+    }
   ;; tag names we need in settings
   setting_tag_names = tag_names(finalsettings)
   if n_elements(settings) ne 0 or arg_present(settings) then begin
@@ -1448,9 +1520,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   sdevfac=finalsettings.sdevfac
   r_thresh=finalsettings.r_thresh
   sievefac=finalsettings.sievefac
-  dwel_cal_scale=finalsettings.dwel_cal_scale
-  wire_flag=finalsettings.wire_flag
-  
+  cal_par=finalsettings.cal_par
   ;test a little
   
   ;Open input and ancillary files
@@ -1549,6 +1619,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     projected = 0b
     projection_type='None'
     max_zen_ang=118.0
+    mean_num_val=1
   endif else begin
     projected = 1b
     match = -1
@@ -1574,10 +1645,24 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     endif else begin
       max_zen_ang=118.0
     endelse
+
+    match = -1
+    for i=0,n_elements(DWEL_headers.DWEL_projection_info)-1 do begin
+      if (strmatch(DWEL_headers.DWEL_projection_info[i],'*num_val_Stats*')) then match=i
+    endfor
+    if (match ge 0) then begin
+      sf = strsplit(DWEL_headers.DWEL_projection_info[match],'=',/extract)
+      sf = strmid(sf[1], 1, strlen(sf[1])-2)
+      sf = strsplit(sf,',',/extract,count=tmpcount)
+      mean_num_val = float(strtrim(sf[1], 2))
+    endif else begin
+      mean_num_val = 1
+    endelse
   endif
   
-  print,'max_zen_ang='+strtrim(string(max_zen_ang),2)
-  
+  print,'max_zen_ang='+strtrim(string(max_zen_ang),2) 
+  print, 'mean_num_val=', mean_num_val
+ 
   ; Check if file is apparent reflectance
   if (DWEL_headers.apprefl_present) then begin
     app_refl=1b
@@ -1637,72 +1722,100 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   
   print,'wavelength='+strtrim(string(wavelength),2)
 
-  ;Read the laser power set by user
-  match = -1
-  if wavelength eq 1064 then begin
-    for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-      if (strmatch(DWEL_headers.DWEL_scan_info[i],'*power1064*')) then match=i
-    endfor
-    if (match ge 0) then begin
-      sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
-      laser_power = float(sf[1])
-    endif else begin
-      laser_power = 1300.0 ;; input current
-    endelse
+  ; get the wire flag 
+  base_info = DWEL_headers.DWEL_base_fix_info
+  for i=0,n_elements(base_info)-1 do begin
+    if (strmatch(base_info[i], '*Wire_Flag*', /fold_case)) then match=i
+  endfor 
+  if match ge 0 then begin
+    text=strtrim(base_info[match],2)
+    k=strpos(text,'=')
+    wire_flag=fix(strtrim(strmid(text,k+1),2))
   endif else begin
-    for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
-      if (strmatch(DWEL_headers.DWEL_scan_info[i],'*power1548*')) then match=i
-    endfor
-    if (match ge 0) then begin
-      sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
-      laser_power = float(sf[1])
-    endif else begin
-      laser_power = 130.0 ;; input current
-    endelse
+    wire_flag = 0
   endelse 
-  
-  print,'Laser power setting by user, input current='+strtrim(string(laser_power),2)
+
+  ;; find the casing type for laser power variation monitoring from early
+  ;; basefix 
+  ;; default casing type is dewired or no-wire returns from lambertian panel. 
+  casing_type = 'LAM'
+  match = -1
+  for i=0,n_elements(base_info)-1 do if (strmatch(base_info[i],'*Casing_Type*',/fold_case)) then match=i
+  if (match ge 0) then begin
+    text=strtrim(base_info[match],2)
+    print,'text=',text
+    k=strpos(text,'=')
+    casing_type=strtrim(strmid(text,k+1),2)
+  endif else begin
+    casing_type = 'LAM'
+  endelse
+  if (match ge 0) then print,'info match for casing type= ',strtrim(base_info[match],2)
+  print,'casing type='+casing_type
   
   ;the calibration is now known as of 20141220
-  ;are interpolated or extrapolated
-  if (wavelength eq 1064) then begin
-    if strcmp(laser_man, 'manlight', /fold_case) then begin
-      if wire_flag then begin ;; calibration parameters for scans with wire
-        ;; NSF DWEL, for scaled intensity
-        ;; estimated from stationary panel scans with wire
-        ;; 10591.354 is the constant from unscaled return intensity DN
-        ;; 2.305 is the nominal scale factor by onboard lambertian target
-        ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
-        ;; 1300 is the laser power setting of calibration scans.
-        dwel_cal = 5863.906*0.984807753*2.305 
-        rpow = 1.402 ;; NSF DWEL
-      endif else begin
-        ;; add something
-      endelse 
-    endif 
-    if strcmp(laser_man, 'keopsys', /fold_case) then begin
-      ;; add something
-    endif 
+  tmp = where(cal_par le 0, tmpcount)
+  if tmpcount gt 0 then begin
+    ;; user does not provide calibration parameters or not provie a complete
+    ;; correct one. use the default calibration paramters
+    if (wavelength eq 1064) then begin
+      if strcmp(laser_man, 'manlight', /fold_case) then begin
+        if wire_flag then begin 
+          ;; calibration parameters for scans with wire, but wire removed
+          ;; NSF DWEL, for scaled intensity
+          ;; estimated from stationary panel scans with wire
+          ;; 10591.354 is the constant from unscaled return intensity DN
+          ;; 2.305 is the nominal scale factor by onboard lambertian target
+          ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
+          ;; 1300 is the laser power setting of calibration scans.
+          dwel_cal = 5863.906d0*0.984807753*5.727
+          rpow = 1.402d0 ;; NSF DWEL
+          eff_par = [3413.743d0, 0.895d0, 15.640d0, 3413.743d0]
+        endif else begin
+          ;; no-wire, same with wire-removed
+          dwel_cal = 5863.906d0*0.984807753*5.727
+          rpow = 1.402d0 ;; NSF DWEL
+          eff_par = [3413.743d0, 0.895d0, 15.640d0, 3413.743d0]
+        endelse 
+      endif 
+      if strcmp(laser_man, 'keopsys', /fold_case) then begin
+        ;; from David, on 20141220
+        dwel_cal = 2052936.432d0
+        rpow = 1.9056d0
+        eff_par = [6580.330d0, 0.3553d0, 43.396d0, 6580.330d0]
+      endif 
+    endif else begin
+      if strcmp(laser_man, 'manlight', /fold_case) then begin
+        if wire_flag then begin 
+          ;; calibration parameters for scans with wire, but wire removed
+          ;; NSF DWEL, for scaled intensity
+          ;; estimated from stationary panel scans with wire
+          ;; 10591.354 is the constant from unscaled return intensity DN
+          ;; 2.305 is the nominal scale factor by onboard lambertian target
+          ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
+          ;; 1300 is the laser power setting of calibration scans.
+          dwel_cal = 20543.960d0*0.984807753*5.103
+          rpow = 1.566d0 ;; NSF DWEL
+          eff_par = [5.133d0, 0.646d0, 1.114d0, 5.133d0]
+        endif else begin
+          ;; no-wire, same with wire-removed
+          dwel_cal = 20543.960d0*0.984807753*5.103
+          rpow = 1.566d0 ;; NSF DWEL
+          eff_par = [5.133d0, 0.646d0, 1.114d0, 5.133d0]
+        endelse 
+      endif 
+      if strcmp(laser_man, 'keopsys', /fold_case) then begin
+        ;; from David, on 20141220
+        dwel_cal = 712237.602d0
+        rpow = 1.9056d0
+        eff_par = [4483.089d0, 0.7317d0, 19.263d0, 4483.089d0]
+      endif 
+    endelse
   endif else begin
-    if strcmp(laser_man, 'manlight', /fold_case) then begin
-      if wire_flag then begin ;; calibration parameters for scans with wire
-        ;; NSF DWEL, for scaled intensity
-        ;; estimated from stationary panel scans with wire
-        ;; 10591.354 is the constant from unscaled return intensity DN
-        ;; 2.305 is the nominal scale factor by onboard lambertian target
-        ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
-        ;; 1300 is the laser power setting of calibration scans.
-        dwel_cal = 20543.960*0.984807753*2.773
-        rpow = 1.566 ;; NSF DWEL
-      endif else begin
-        ;; add something
-      endelse 
-    endif 
-    if strcmp(laser_man, 'keopsys', /fold_case) then begin
-      ;; add something
-    endif 
-  endelse
-  dwel_cal = dwel_cal*dwel_cal_scale
+    ;; user has provided a valid calibration parameter set. 
+    dwel_cal = cal_par[0]
+    rpow = cal_par[5]
+    eff_par = cal_par[1:4]
+  endelse 
     
   ;set up the calibration as far as possible
   if (cal_dat) then begin
@@ -1825,14 +1938,16 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     endif
   endif
   
+  ;; read the average number of averaged shots in a projected bin
+
   ;; b_thresh=sdevfac*threshold
   ;; Because we have scaled waveforms in the filtered_fixbase processing
   ;; procedure, the standard deviation of background base level needs to be
   ;; scaled accordingly to reflect correct noise level and derive appropriate
   ;; threshold here.
-  b_thresh=sdevfac*(scale_mean*threshold)
+  b_thresh=sdevfac*(scale_mean*threshold/sqrt(mean_num_val))
 
-  sieve_thresh = sievefac*(scale_mean*threshold)
+  sieve_thresh = sievefac*(scale_mean*threshold/sqrt(mean_num_val))
   
   print,'b_thresh='+strtrim(string(b_thresh),2)
   print, 'r_thresh=' + strtrim(string(r_thresh), 2)
@@ -2015,7 +2130,10 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     DWEL_div:DWEL_div,$
     Dwel_cal:Dwel_cal,$
     rpow:rpow,$
-    s_Factor:s_Factor}
+    eff_par:eff_par,$
+    s_Factor:s_Factor,$
+    pulse:pulse,$
+    p_range:p_range}
     
   pb_stats=ptr_new(base_stats,/no_copy)
   pb_info = ''

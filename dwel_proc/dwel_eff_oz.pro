@@ -1,4 +1,4 @@
-function dwel_eff_oz, wavelength, range
+function dwel_eff_oz, wavelength, range, par=par
 compile_opt idl2
 ;
 ;Calculate DWEL telescope efficiency based on growth model
@@ -6,20 +6,28 @@ compile_opt idl2
 ;wavelength : the DWEL band
 ;range : an array of target ranges (metres) where efficiency is to be
 ;           calculated
+;keyword argument, par: parameters of telescope efficiency
 ; Returned value is an array with same dimensions as range.
 ;
-if (wavelength eq 1064) then begin
-  c1=6412.969117d0
-  c2=0.356005918d0
-  c3=44.17324355d0
-  c4=9185.292839d0
-endif
-if (wavelength eq 1548) then begin
-  c1=4482.866303d0
-  c2=0.732665429d0
-  c3=21.17271201d0
-  c4=18436.23737d0
-endif
+if n_elements(par) ne 0 or arg_present(par) then begin
+  c1 = par[0]
+  c2 = par[1]
+  c3 = par[2]
+  c4 = par[3]
+endif else 
+  if (wavelength eq 1064) then begin
+    c1=6580.330d0
+    c2=0.3553d0
+    c3=43.396d0
+    c4=6580.330d0
+  endif
+  if (wavelength eq 1548) then begin
+    c1=4483.089d0
+    c2=0.7317d0
+    c3=19.263d0
+    c4=4483.089d0
+  endif
+endelse
 zero=1.0d0/(1.0d0+double(c1)*exp(-double(c2)*double(c3)))^c4
 num_range=n_elements(range)
 valid = where(range gt 0.05, nvalid, compl=invalid, ncompl=n)

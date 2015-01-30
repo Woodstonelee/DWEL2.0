@@ -1,4 +1,4 @@
-function dwel_eff_nsf, wavelength, range
+function dwel_eff_nsf, wavelength, range, par=par
 compile_opt idl2
 ;
 ;Calculate DWEL telescope efficiency based on growth model
@@ -6,23 +6,32 @@ compile_opt idl2
 ;wavelength : the DWEL band
 ;range : an array of target ranges (metres) where efficiency is to be
 ;           calculated
+;keyword argument, par: calibration parameters
 ; Returned value is an array with same dimensions as range.
 ;
 ; k(r) model function in latex:
 ; P_r(r) = \frac{C_0 \cdot \rho}{r^b} \cdot \frac{1}{ \left(
 ; 1+C_1\cdot e^{-C_2\cdot(r+C_3)} \right)^ {C_4} }
-if (wavelength eq 1064) then begin
-  c1=3413.743d0
-  c2=0.895d0
-  c3=15.640d0
-  c4=c1
-endif
-if (wavelength eq 1548) then begin
-  c1=5.133d0
-  c2=0.646d0
-  c3=1.114d0
-  c4=c1
-endif
+
+if n_elements(par) ne 0 or arg_present(par) then begin
+  c1 = par[0]
+  c2 = par[1]
+  c3 = par[2]
+  c4 = par[3]
+endif else begin
+  if (wavelength eq 1064) then begin
+    c1=3413.743d0
+    c2=0.895d0
+    c3=15.640d0
+    c4=c1
+  endif
+  if (wavelength eq 1548) then begin
+    c1=5.133d0
+    c2=0.646d0
+    c3=1.114d0
+    c4=c1
+  endif
+endelse 
 zero=1.0d0/(1.0d0+double(c1)*exp(-double(c2)*double(c3)))^c4
 num_range=n_elements(range)
 valid = where(range gt 0.05, nvalid, compl=invalid, ncompl=n)
