@@ -593,10 +593,19 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
       k=strpos(text,'=')
       wire2Tzero=float(strtrim(strmid(text,k+1),2))
     endif else begin
-      if wavelength eq 1064 then begin
-        wire2Tzero = 0.299 ; in unit of meter
+      if strcmp(laser_man, 'manlight', /fold_case) then begin
+        if wavelength eq 1064 then begin
+          wire2Tzero = 0.299 ; unit, meter
+        endif else begin
+          wire2Tzero = 0.414 ; unit, meter
+        endelse 
       endif else begin
-        wire2Tzero = 0.414 ; unit: meter
+        ;; this is Oz DWEL
+        if wavelength eq 1064 then begin
+          wire2Tzero = 0.156 ; unit, meter
+        endif else begin
+          wire2Tzero = 0.124 ; unit, meter
+        endelse      
       endelse 
     endelse
     if (match ge 0) then print,'info match for wire2Tzero= ',strtrim(base_info[match],2)

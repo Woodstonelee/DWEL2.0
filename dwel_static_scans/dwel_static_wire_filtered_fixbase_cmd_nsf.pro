@@ -45,7 +45,7 @@
 ;Zhan Li, Oct 2014 - Added documentation comments.
 ;-
 pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, $
-  get_info_stats, zen_tweak, err, target_range=target_range
+  get_info_stats, zen_tweak, err, target_range
 
   ;; FilteredFile: the file name of the DWEL cube file that had been base and sat fixed and then filtered
   ;
@@ -67,6 +67,8 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
   resolve_routine, 'DT2NB', /compile_full_file, /either
   resolve_routine, 'CMREPLICATE', /compile_full_file, /either
+
+  print, 'Target range by user: ', target_range
 
   ;; get the size of input file to be processed. It will be used in later
   ;; summary of processing time. 
@@ -102,7 +104,8 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   ;; ===========================================================================
   ;; some internal parameters
   ;; distance from casing (edge of casing) to the true Tzero position
-  casing2Tzero = 0.065 ; unit: meters
+  ;; default is for NSF DWEL
+  ;; casing2Tzero = 0.055 ; unit: meters
   ;; the FWHM of outgoing pulse, ns
   outgoing_fwhm = 5.1
   ;; the full width of outgoing pulse where intensity is below 0.01 of
@@ -245,7 +248,82 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   
   ;also scale
   nu_scale=1.0
+
+  ;Read the laser manufacturer from the scan info
+  ;; default laser is manlight
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*lasers*',/fold_case)) then match=i
+  endfor
+  if (match ge 0) then begin
+    sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
+    laser_man = sf[1]
+  endif else begin
+    laser_man = 'manlight'
+  endelse  
+  print,'Laser manufacturer = '+strtrim(laser_man)
+
+  DWEL_Adaptation = ENVI_GET_HEADER_VALUE(ancillaryfile_fid, 'DWEL_Adaptation', undefined=undef)
+  ;now get the DWEL wavelength
+  match = -1
+  info = DWEL_Adaptation
+  for i=0,n_elements(info)-1 do begin
+    if (strmatch(info[i],'*Wavelength=*', /fold_case)) then match=i
+  endfor
+  if match ge 0 then begin
+    text=strtrim(info[match],2)
+    print,'text=',text
+    k=strpos(text,'=')
+    print,'extract=',strtrim(strmid(text,k+1,4),2)
+    wavelength=fix(strtrim(strmid(text,k+1,4),2))
+  endif else begin
+    if (strpos(DWEL_headers.f_base, '1064') ne -1) then begin
+      wavelength = 1064
+    endif
+    if (strpos(DWEL_headers.f_base, '1548') ne -1) then begin
+      wavelength = 1548
+    endif
+  endelse
+  ;; find the scan encoder of zenith point
+  for i=0, n_elements(info)-1 do begin
+    if (strmatch(info[i], '*Scan encoder of zenith point*', /fold_case)) then $
+      match = i
+  endfor
+  if match ge 0 then begin
+    text=strtrim(info[match],2)
+    print,'text=',text
+    k=strpos(text,'=')
+    print,'extract=',strtrim(strmid(text,k+1),2)
+    zenithenc=fix(strtrim(strmid(text,k+1),2), type=3)
+  endif else begin
+    zenithenc = 0L
+  endelse
   
+  if (wavelength eq 1064) then begin
+    target_dn=512.0
+    ;; move leftward from out_of_pulse to find peak of wire signal
+;    bins_toward_wire = 57 ; in unit of bins
+  endif else begin
+    target_dn=509.0
+    ;; move leftward from out_of_pulse to find peak of wire signal
+;    bins_toward_wire = 80 ; in unit of bins
+  endelse
+
+  if strcmp(laser_man, 'manlight', /fold_case) then begin
+    if wavelength eq 1064 then begin
+      wire2Tzero = 0.299 ; unit, meter
+    endif else begin
+      wire2Tzero = 0.414 ; unit, meter
+    endelse 
+  endif else begin
+    ;; this is Oz DWEL
+    if wavelength eq 1064 then begin
+      wire2Tzero = 0.156 ; unit, meter
+    endif else begin
+      wire2Tzero = 0.124 ; unit, meter
+    endelse      
+  endelse 
+   
   ;set the default sampling rate
   match = -1
   for i=0,n_elements(info)-1 do if (strmatch(info[i],'*Sampling Rate*')) then match=i
@@ -289,6 +367,34 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   endelse
   if (match ge 0) then print,'info match for Tzero= ',strtrim(base_info[match],2)
   print,'Old Tzero=',Tzero
+
+  ;update the delta/wire2Tzero from early basefix if found
+  match = -1
+  for i=0,n_elements(base_info)-1 do if (strmatch(base_info[i],'*delta*',/fold_case)) then match=i
+  if (match ge 0) then begin
+    text=strtrim(base_info[match],2)
+    print,'text=',text
+    k=strpos(text,'=')
+    delta=float(strtrim(strmid(text,k+1),2))
+    print,'info match for delta= ',strtrim(base_info[match],2)
+    print,'Extracted delta=', delta
+    wire2Tzero = delta*c2*(-1)
+  endif
+
+  ;; find out_of_pulse from early basefix
+  match = -1
+  for i=0,n_elements(base_info)-1 do if (strmatch(base_info[i],'*out_of_pulse*',/fold_case)) then match=i
+  if (match ge 0) then begin
+    text=strtrim(base_info[match],2)
+    print,'text=',text
+    k=strpos(text,'=')
+    out_of_pulse=fix(strtrim(strmid(text,k+1),2))
+  endif else begin
+
+  endelse
+  if (match ge 0) then print,'info match for out_of_pulse= ',strtrim(base_info[match],2)
+  print,'out_of_pulse=', out_of_pulse
+
   
   print,'initial wl[0], d_wl (meter) = '+strtrim(string(wl[0]),2)+','+strtrim(string(wl[1]-wl[0]),2)
   
@@ -324,54 +430,7 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   endelse
   if (match ge 0) then print,'info match for High= ',strtrim(base_info[match],2)
   print,'High=',high
-  
-  DWEL_Adaptation = ENVI_GET_HEADER_VALUE(ancillaryfile_fid, 'DWEL_Adaptation', undefined=undef)
-  
-  ;now get the DWEL wavelength
-  match = -1
-  info = DWEL_Adaptation
-  for i=0,n_elements(info)-1 do begin
-    if (strmatch(info[i],'*Wavelength=*', /fold_case)) then match=i
-  endfor
-  if match ge 0 then begin
-    text=strtrim(info[match],2)
-    print,'text=',text
-    k=strpos(text,'=')
-    print,'extract=',strtrim(strmid(text,k+1,4),2)
-    wavelength=fix(strtrim(strmid(text,k+1,4),2))
-  endif else begin
-    if (strpos(DWEL_headers.f_base, '1064') ne -1) then begin
-      wavelength = 1064
-    endif
-    if (strpos(DWEL_headers.f_base, '1548') ne -1) then begin
-      wavelength = 1548
-    endif
-  endelse
-  ;; find the scan encoder of zenith point
-  for i=0, n_elements(info)-1 do begin
-    if (strmatch(info[i], '*Scan encoder of zenith point*', /fold_case)) then $
-      match = i
-  endfor
-  if match ge 0 then begin
-    text=strtrim(info[match],2)
-    print,'text=',text
-    k=strpos(text,'=')
-    print,'extract=',strtrim(strmid(text,k+1),2)
-    zenithenc=fix(strtrim(strmid(text,k+1),2), type=3)
-  endif else begin
-    zenithenc = 0L
-  endelse
-  
-  if (wavelength eq 1064) then begin
-    target_dn=512.0
-    ;; move leftward from out_of_pulse to find peak of wire signal
-    bins_toward_wire = 57 ; in unit of bins
-  endif else begin
-    target_dn=509.0
-    ;; move leftward from out_of_pulse to find peak of wire signal
-    bins_toward_wire = 80 ; in unit of bins
-  endelse 
-  
+    
   ;input some planes of data from the ancillary file
   anc_data=lonarr(ns,nl,9)
   for j=0,8 do begin
@@ -449,6 +508,39 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
     err=7
     goto,cleanup
   endif
+
+  ;; find locations of bins for wire signal search
+  w_start=tzero-wire2Tzero/c2-pulse_width_range/4.0
+  w_end=tzero-wire2Tzero/c2+pulse_width_range/4.0
+  posw=where((wl ge w_start) and (wl le w_end),nposw)
+  print,'nposw='+strtrim(string(nposw),2)
+  ;; find locations of bins for mean base calculation
+  b_start = out_of_pulse*time_step
+  b_end = wl[nb-1]
+  target_start = tzero + target_range/c2 - pulse_width_range
+  target_end = tzero + target_range/c2 + pulse_width_range
+  posb = where((wl ge b_start) and (wl le b_end) and ((wl le target_start) or (wl ge target_end)), nposb)
+
+  ;; refine the window of target return such that it won't mess up wire
+  ;; signal search of near ranges
+  use_apriori_tzero = 0b
+  if (target_start lt w_end) then begin
+    print, 'target_start time = ', target_start
+    print, 'w_end time = ', w_end
+    target_start = tzero + target_range/c2 - pulse_width_range/4.0
+    if (target_start lt w_end) then begin
+      midtime = (target_start + w_end)/2.0
+      print, 'midtime = ', midtime
+      target_start = midtime
+      ;; tell the program to use a priori tzero
+      use_apriori_tzero = 1b
+      ap_tzero = tzero
+    endif else begin
+      target_start = w_end
+    endelse 
+  endif 
+  print, 'refined target_start time = ', target_start
+  postarget = where((wl ge target_start) and (wl le target_end), npostarget)
   
   ;; get mean pulse and baseline from the given casing area designated
   ;;by the zenith angles.
@@ -489,14 +581,14 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
       ;; temp2=total(d[*,out_of_pulse:nb-1],/double)/(double(count)*double(nb-out_of_pulse))
       ;
       nt=n_elements(temp)
-      store=reform(temp[before_casing:out_of_pulse-bins_toward_wire])
+      store=reform(temp[posw])
       tempmax=max(store,nct)
       ; interpolate peak location
       istat = peak_int([float(nct-1), float(nct), float(nct+1)], store[[nct-1, nct, nct+1]], tzero_loc, value, offset)
       
-      mpos=before_casing+nct
+      mpos=posw[0]+nct
       line_scale[i]=target_dn/(tempmax-temp2)
-      t_zerol[i]=(float(before_casing)+tzero_loc)*time_step
+      t_zerol[i]=(float(posw[0])+tzero_loc)*time_step
       if (get_info_stats) then begin
         save[0,i]=float(i)
         save[1,i]=float(count)
@@ -696,25 +788,26 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   ;  p_time = time
   ;  pulse = sum / double(n)
   ;  sig = sqrt((sum2 / double(n) - pulse^2)*double(n)/double(n-1))
-  CasingMeanWfMax = max(reform(pulse[before_casing:out_of_pulse-bins_toward_wire]), nct)
-  Tzero_I=before_casing+nct
+  CasingMeanWfMax = max(reform(pulse[posw]), nct)
+  Tzero_I=posw[0]+nct
   print, 'Initial Tzero before baseline fix = ', time[Tzero_I], ' ns'
   tlow=time[Tzero_I] - 1.5*pulse_width_range
   thigh=time[Tzero_I] + 1.5*pulse_width_range
   print,'tlow,thigh=',tlow,thigh
   baseline = dblarr(nb)
-  ;; tmpind = where(time lt tlow, count)
-  ;; if count gt 0 then begin
-  ;;   baseline[tmpind] = pulse[tmpind]
-  ;; endif
-  ;; tmpind = where(time gt thigh, count)
-  ;; if count gt 0 then begin
-  ;;   baseline[tmpind] = pulse[tmpind]
-  ;; endif
-  ;; tmpind=where((time ge tlow) and (time le thigh),count)
-  ;; if (count gt 0) then begin
-  ;;   baseline[tmpind]=0.0
-  ;; endif
+  tmpind = where(time lt tlow, count)
+  if count gt 0 then begin
+    baseline[tmpind] = pulse[tmpind]
+  endif
+  tmpind = where(time gt thigh, count)
+  if count gt 0 then begin
+    baseline[tmpind] = pulse[tmpind]
+  endif
+  tmpind=where((time ge tlow) and (time le thigh),count)
+  if (count gt 0) then begin
+    baseline[tmpind]=0.0
+  endif
+  baseline[postarget] = 0.0
   
   pulse = pulse - baseline
   
@@ -722,17 +815,15 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   CasingMeanSig=sig[Tzero_I]
   CasingMeanCV=100.0*CasingMeanSig/CasingMeanWfMax
   
-  if (out_of_pulse-bins_toward_wire-Tzero_I)*time_step lt thigh then begin
-    thigh = (out_of_pulse-bins_toward_wire-Tzero_I)*time_step
-  endif 
+  ;; if (out_of_pulse-bins_toward_wire-Tzero_I)*time_step lt thigh then begin
+  ;;   thigh = (out_of_pulse-bins_toward_wire-Tzero_I)*time_step
+  ;; endif 
   tmpind = where((time ge tlow) and (time le thigh), count)
   if count gt 0 then begin
     casing_power=total(reform(pulse[tmpind]),/double)
     tmpmax = max(pulse[tmpind], Tzero_I)
     if (abs(casing_power) lt 1.0e-6) then casing_fwhm=0.0 else $
       casing_fwhm=(wl[1]-wl[0])*casing_power/tmpmax
-    Tzero=time[Tzero_I]
-    print,'Initial Tzero after baseline fix = ',Tzero,' ns'
   endif else begin
     casing_power = 0.0
     casing_fwhm = 0.0
@@ -750,7 +841,7 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
     line_scale[posscal]=scale_mean
   endif
   
-  delta= -casing2Tzero/c2 ; 0.065 meter is about the distance between the rotating mirror and the base.
+  delta= -wire2Tzero/c2 ; 0.065 meter is about the distance between the rotating mirror and the base.
   print,'delta=',delta, ' ns'
   print,''
   ;
@@ -829,6 +920,13 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   ;set up the DWEL header information for the base fixing
   ;
   dwel_itpulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time, pulse_model
+  pulse_model_name = 'NSF_DWEL_ItPulse_Model'
+  ;; if the input data is from  Oz DWEL, keopsys lasers, 
+  if strcmp(laser_man, 'keopsys', /fold_case) then begin
+    DWEL_itpulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, pulse_model
+    pulse_model_name = 'Oz_DWEL_ItPulse_Model'
+  endif 
+  print, 'Pulse model used in filtered_fixbase: '+pulse_model_name
   
   model_fwhm=total(pulse_model)*time_step
   
@@ -1099,11 +1197,12 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
       shot_num = shot_num + 1L
 
       tmpwf = temp[j, *]
-      tmpmax = max(tmpwf[before_casing:out_of_pulse-bins_toward_wire], tmpmaxI)
-      tmpind = before_casing + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
+      tmpmax = max(tmpwf[posw], tmpmaxI)
+      tmpind = posw[0] + [tmpmaxI-1, tmpmaxI, tmpmaxI+1]
+      w_maxI = posw[0] + tmpmaxI
       istat = peak_int(tmpind*time_step, tmpwf[tmpind], time_int, pulse_int, $
         offset)
-      wire_tzero[j] = time_int
+      wire_tzero[j] = time_int + delta
 
       ;remove wire signal from waveform
       ;get a pulse from the pulse model scaled by interpolated pulse peak
@@ -1138,7 +1237,7 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
       endif else begin
         ; printf, wfile, strtrim('tzero,intensity,time[k],int[k],sample,line,band', 2)
         buf = string(wire_tzero[j], pulse_int, $
-          (before_casing+tmpmaxI)*time_step, tmpmax, j+1, i+1, tmpmaxI, $
+          (w_maxI)*time_step, tmpmax, j+1, i+1, w_maxI, $
           shot_num, $
           format='(4f14.3,4i10)') 
         buf=strtrim(strcompress(buf),2)

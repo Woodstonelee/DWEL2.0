@@ -45,7 +45,7 @@
 ;Zhan Li, Oct 2014 - Created this routine based on David Jupp's old routine.
 ;-
 pro dwel_static_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_tweak, $
-  ierr, target_range=target_range
+  ierr, target_range
 
   compile_opt idl2
 ;  envi, /restore_base_save_files
@@ -102,6 +102,20 @@ pro dwel_static_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_t
     err_flag=1b
     goto,out
   endif
+
+  ;Read the laser manufacturer from the scan info
+  match = -1
+  for i=0,n_elements(DWEL_headers.DWEL_scan_info)-1 do begin
+    if (strmatch(DWEL_headers.DWEL_scan_info[i],'*lasers*')) then match=i
+  endfor
+  if (match ge 0) then begin
+    sf = strtrim(strcompress(strsplit(DWEL_headers.DWEL_scan_info[match],'=',/extract)),2)
+    laser_man = sf[1]
+  endif else begin
+    laser_man = 'manlight'
+  endelse  
+  print,'Laser manufacturer = '+strtrim(laser_man)
+
   info=DWEL_headers.dwel_adaptation
   ;; now get the DWEL wavelength
   match = -1
@@ -131,8 +145,16 @@ pro dwel_static_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_t
   sel_wl=wavelength
   if (wavelength eq 1064) then sel_wl=1548 else sel_wl=1064
   
-  dwel_pulse_model_dual_nsf, sel_wl, i_val, t_val, r_val, p_range, p_time, $
-    pulse, t_fwhm, r_fwhm
+  ;set up the pulse model
+  ;; default pulse model is from NSF DWEL, manlight lasers.
+  DWEL_pulse_model_dual_nsf, sel_wl, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
+  pulse_model_name = 'NSF_DWEL_Pulse_Model'
+  ;; if the input data is from  Oz DWEL, keopsys lasers, 
+  if strcmp(laser_man, 'keopsys', /fold_case) then begin
+    DWEL_pulse_model_dual_oz, sel_wl, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
+    pulse_model_name = 'Oz_DWEL_Pulse_Model'
+  endif 
+  print, 'Pulse model used to cross correlate waveforms: '+pulse_model_name
     
   print,''
   print,'Number of values in filter='+strtrim(string(n_elements(pulse)),2)
@@ -167,7 +189,7 @@ pro dwel_static_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_t
   get_info_stats = 1
   print, 'Start re-fixing cross-correlation results and write update file ...' 
   dwel_static_wire_filtered_fixbase_cmd_nsf, outcube_filter, AncillaryFile, outupdatedfile, $
-    get_info_stats, zen_tweak, ierr, target_range=target_range
+    get_info_stats, zen_tweak, ierr, target_range
     
   if (ierr gt 0) then begin
     print,'DWEL_Filtered_FixBase_Cmd returned with error'

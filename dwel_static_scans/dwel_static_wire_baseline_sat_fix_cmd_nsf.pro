@@ -37,77 +37,8 @@
 ;
 ;-
 
-function apply_sat_fix_nsf, basefixed_satwf, pulse_model, i_val, satfixedwf=satfixedwf
-  ; set some values - i_val now read in
-  p_centpeak=i_val[2]
-  p_troughloc=i_val[3]
-  p_scdpeakloc=i_val[4]
-  
-  ; initial maximum peak location
-  tmp = max(basefixed_satwf, maxpeakloc)
-  maxpeakloc = maxpeakloc[0]
-  nu_pos=where(basefixed_satwf eq tmp,nu_npos)
-  if (nu_npos le 1) then return,2
-  if (nu_npos gt 20) then return,0
-  nu_pos=0b
-  ; find the three zero-cross points after the maximum peak
-  wflen = size(basefixed_satwf, /n_elements)
-  zero_xloc = $
-    where(basefixed_satwf[maxpeakloc:wflen-2]*basefixed_satwf[maxpeakloc+1:wflen-1] $
-    le 0, tmpcount) + maxpeakloc
-    
-  if (size(zero_xloc, /n_elements) lt 3) then begin
-    return, 0
-  endif
-  ; find the minimum and maximum between the first zero-cross point and the third zero-cross point
-  tmp = min(basefixed_satwf[zero_xloc[0]:zero_xloc[1]],tmploc)
-  ;check if the minimum has saturated at original zero DN
-  ;if so, use mean of positions
-  nu_pos=where(basefixed_satwf[zero_xloc[0]:zero_xloc[1]] eq tmp,nu_npos)
-  if (nu_npos gt 1) then begin
-    troughloc = round(mean(nu_pos,/double)) + zero_xloc[0]
-  endif else troughloc=tmploc+zero_xloc[0]
-  ; now get the max value in the second interval (note use of separate intervals)
-  tmp = max(basefixed_satwf[zero_xloc[1]:zero_xloc[2]], tmploc)
-  scdpeakloc = fix(mean(tmploc[0])) + zero_xloc[1]
-  ; satfix scale now more stable
-  satfix_scale = (2.0*abs(basefixed_satwf[troughloc[0]])+abs(basefixed_satwf[scdpeakloc[0]]))/ $
-    (2.0*abs(pulse_model[p_troughloc])+abs(pulse_model[p_scdpeakloc]))
-  ;
-  ;now find the centre position if there is a run of top values of the main saturated waveform
-  ;again use mean of positions as default position of the main peak
-  nu_pos=where(basefixed_satwf[maxpeakloc:zero_xloc[0]],nu_npos)
-  if (nu_npos gt 1) then begin
-    centpeak=mean(float(nu_pos),/double)+float(maxpeakloc)
-  endif else centpeak=float(maxpeakloc)
-  ;
-  ;now only use the 1% and 99% points rather than overwriting full pulse length
-  plen = n_elements(pulse_model[i_val[1]:i_val[5]])
-  satfixedwf = basefixed_satwf
-  ;
-  ;stable estimate of start uses estimates of main peak and other two with weights
-  nl=round((3.0*float(centpeak-p_centpeak)+2.0*float(troughloc-p_troughloc) + $
-    float(scdpeakloc-p_scdpeakloc))/6.0) + i_val[1]
-  ;nr=troughloc+plen-p_troughloc-1
-  nr=nl+plen-1
-  nsatfix=n_elements(satfixedwf)
-  if ((nl lt 0) or (nr gt nsatfix-1)) then return,0
-  satfixedwf[nl:nr] = pulse_model[i_val[1]:i_val[5]]*satfix_scale
-  temp=reform(satfixedwf[nl:nr])
-  ;prevent overflow values if possible
-  nu_pos=where(abs(temp) gt 32767,nu_npos)
-  if (nu_npos gt 0) then begin
-    temp[nu_pos]=32767
-    satfixedwf[nl:nr]=temp
-    return,0
-  endif
-  temp=0b
-  nu_pos=0b
-  return, 1
-end
-
 pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, $
-    out_satfix_name, get_info_stats, zen_tweak, err, target_range=target_range
+    out_satfix_name, get_info_stats, zen_tweak, err, target_range, settings=settings
 
   ;; DWELCubeFile: the full file name of the DWEL cube file
     
@@ -128,6 +59,8 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
   resolve_routine, 'CMREPLICATE', /compile_full_file, /either
 
+  print, 'Target range by user: ', target_range
+
   ;
   lun=99
   inlun=105
@@ -144,8 +77,6 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   ;more internal settings
   ;always get the pulse information and write out files at this time
   get_info_stats=1b
-  ; position where you are free of the casing effects - for mean baseline
-  out_of_pulse=400 ; in unit of bins
   ;skip these values - currently noisy and useless
   before_casing=100 ; in unit of bins
   ;target dn preset but set later
@@ -153,13 +84,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   ;used in sun background check to be away from significant return pulses
   far_range=650 ; in unit of bins
   ;threshold on raise of baseline by sun background radiation - note these are scaled and initially basefixed units
-  sun_thresh=40.0
-  ;; distance from casing to the true Tzero position at mirror
-  ;; the specific location of the casing for this distance measurement depends
-  ;; on the given zenith range of casing used for baseline fix and laser power
-  ;; drop-off correction. Now we are using the circular Lambertian target near
-  ;; nadir position.
-  casing2Tzero = 0.065 ; unit=metres, needs update for NSF DWEL
+  sun_thresh=1.5
   ;the "FWHM" of outgoing pulse (now just a number used and calibrated)
   outgoing_fwhm = 5.1
   ;the full width of outgoing pulse where intensity is below 0.01 of maximum
@@ -168,6 +93,41 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   sat_test=1023L
   ;============================================
   
+  finalsettings = { bsfixsettings, $
+    ; a priori value of Tzero (scan mirror center, delta corrected), unit, ns,
+    ; default is 1064 of NSF DWEL
+    ; NSF, 1064, 166.00; 1548, 155.42
+    ; Oz, 1064, 225.19; 1548, 218.72
+    Tzero:166.00, $
+    ; position where you are free of the casing effects - for mean baseline
+    ; Oz, 500
+    out_of_pulse:400, $
+    ; distance between scan mirror center and the wire if present,
+    ; unit=meters. Here default for 1064 nm of NSF DWEL.    
+    wire2Tzero:0.299}
+  ;; if user provides settings
+  if n_elements(settings) ne 0 or arg_present(settings) then begin
+    finalsettings = update_struct_settings(finalsettings, settings)
+  endif 
+  out_of_pulse = finalsettings.out_of_pulse
+  wire2Tzero = finalsettings.wire2Tzero
+  tzero = finalsettings.tzero
+
+  wire2Tzero_user = 0b
+  if tag_exist(settings, 'wire2Tzero') then begin
+    ;; if user has designate a value for wire2Tzero, then we will stick to
+    ;; this value later rather than update it according to instrument and laser
+    ;; wavelength. 
+    wire2Tzero_user = 1b
+  endif 
+  tzero_user = 0b
+  if tag_exist(settings, 'Tzero') then begin
+    ;; if user has designate a value for Tzero, then we will stick to
+    ;; this value later rather than update it according to instrument and laser
+    ;; wavelength. 
+    Tzero_user = 1b
+  endif 
+
   ;; get the size of input file to be processed. It will be used in later
   ;; summary of processing time. 
   procfilesize = file_info(DWELCubeFile)
@@ -346,6 +306,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   endfor
   
   DWEL_Adaptation = envi_get_header_value(ancillaryfile_fid, 'DWEL_Adaptation', undefined=undef)
+  wavelength = 1064
   if undef then begin
     DWEL_Adaptation = ''
     if (strpos(DWEL_headers.f_base, '1064') ne -1) then begin
@@ -390,18 +351,55 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
       zenithenc = 0L
     endelse 
   endelse
-  
+
+  print, 'wavelength = ' + strtrim(string(wavelength), 2)
   print, 'encoder of zenith point = ' + strtrim(string(zenithenc), 2)
 
   if (wavelength eq 1064) then begin
     target_dn=512.0
     ;; move leftward from out_of_pulse to find peak of wire signal
-    bins_toward_wire = 57 ; in unit of bins
+    ;;bins_toward_wire = 57 ; in unit of bins
   endif else begin
     target_dn=509.0
     ;; move leftward from out_of_pulse to find peak of wire signal
-    bins_toward_wire = 80 ; in unit of bins
+    ;;bins_toward_wire = 80 ; in unit of bins
   endelse 
+
+  if (~wire2Tzero_user) then begin
+    if strcmp(laser_man, 'manlight', /fold_case) then begin
+      if wavelength eq 1064 then begin
+        wire2Tzero = 0.299 ; unit, meter
+      endif else begin
+        wire2Tzero = 0.414 ; unit, meter
+      endelse 
+    endif else begin
+      ;; this is Oz DWEL
+      if wavelength eq 1064 then begin
+        wire2Tzero = 0.156 ; unit, meter
+      endif else begin
+        wire2Tzero = 0.124 ; unit, meter
+      endelse      
+    endelse 
+  endif 
+  print, 'wire2Tzero to be used: ', wire2Tzero, ' m'
+
+  if (~tzero_user) then begin
+    if strcmp(laser_man, 'manlight', /fold_case) then begin
+      if wavelength eq 1064 then begin
+        tzero = 166.00 ; unit, ns
+      endif else begin
+        tzero = 155.42 ; unit, ns
+      endelse 
+    endif else begin
+      ;; this is Oz DWEL
+      if wavelength eq 1064 then begin
+        tzero = 225.19 ; unit, ns
+      endif else begin
+        tzero = 218.72 ; unit, ns
+      endelse 
+    endelse 
+  endif 
+  print, 'A priori Tzero to be used: ', tzero, ' ns'
   
   ;close up the envi files
   envi_file_mng,id=infile_fid,/remove
@@ -489,6 +487,39 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   
   print,'bufrs='+strtrim(string(bufrs),2)
   ;
+  ;; find locations of bins for wire signal search
+  w_start=tzero-wire2Tzero/c2-pulse_width_range/4.0
+  w_end=tzero-wire2Tzero/c2+pulse_width_range/4.0
+  posw=where((wl ge w_start) and (wl le w_end),nposw)
+  print,'nposw='+strtrim(string(nposw),2)
+  ;; find locations of bins for mean base calculation
+  b_start = out_of_pulse*time_step
+  b_end = wl[nb-1]
+  target_start = tzero + target_range/c2 - pulse_width_range
+  target_end = tzero + target_range/c2 + pulse_width_range
+  posb = where((wl ge b_start) and (wl le b_end) and ((wl le target_start) or (wl ge target_end)), nposb)
+
+  ;; refine the window of target return such that it won't mess up wire
+  ;; signal search of near ranges
+  use_apriori_tzero = 0b
+  if (target_start lt w_end) then begin
+    print, 'target_start time = ', target_start
+    print, 'w_end time = ', w_end
+    target_start = tzero + target_range/c2 - pulse_width_range/4.0
+    if (target_start lt w_end) then begin
+      midtime = (target_start + w_end)/2.0
+      print, 'midtime = ', midtime
+      target_start = midtime
+      ;; tell the program to use a priori tzero
+      use_apriori_tzero = 1b
+      ap_tzero = tzero
+    endif else begin
+      target_start = w_end
+    endelse 
+  endif 
+  print, 'refined target_start time = ', target_start
+  postarget = where((wl ge target_start) and (wl le target_end), npostarget)
+
   for i=0L,nl-1L do begin
     satmask=bytarr(ns)
     ;; it's a fake data cube from stationary scan, use all waveforms in
@@ -515,7 +546,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
       ;; temp=total(d,1,/double)/double(count) 
       ;; median of waveform bins after the wire signal, it can give us the noise
       ;;base level.
-      tmpmedian = median(d[*, out_of_pulse:nb-1], dimension=2, /even)
+      tmpmedian = median(d[*, posb], dimension=2, /even)
       ;; mean of medians of waveforms in this scan line as the mean base of this
       ;;scan line. 
       temp2 = mean(tmpmedian, /double)
@@ -523,8 +554,8 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
       ;
       nt=n_elements(temp)
       ;; get the max of wire return pulse
-      tempmax=max(reform(temp[before_casing:out_of_pulse-bins_toward_wire]),nct)
-      mpos=before_casing+nct
+      tempmax=max(reform(temp[posw]),nct)
+      mpos=posw[0]+nct
       line_scale[i]=target_dn/(tempmax-temp2)
       if (get_info_stats) then begin
         save[0,i]=float(i)
@@ -539,7 +570,9 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
         save[7,i]=(wl[1]-wl[0])*save[6,i]/save[2,i]
       endif
       ;; notice 'temp' here is from all waveforms and thus includes return
-      ;;signals back from targets other than wire. 
+      ;;signals back from targets other than wire. Thus we first change the bins
+      ;;in the expected target range to mean base
+      temp[postarget] = temp2
       sum = sum + temp
       sum2 = sum2 + total(d^2, 1,/double)/double(count)
     endif else begin
@@ -586,8 +619,8 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   
   ;mu and sig are length the number of bands
   ;; now the pulse and sig includes signals of all targets, not just the wire
-  mean_base = median(pulse[out_of_pulse:nb-1], /double, /even)
-  mean_base_sig = median(sig[out_of_pulse:nb-1], /double, /even)
+  mean_base = median(pulse[posb], /double, /even)
+  mean_base_sig = median(sig[posb], /double, /even)
   ;; mean_base=total(pulse[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
   ;; mean_base_sig=total(sig[out_of_pulse:nb-1],/double)/double(nb-out_of_pulse)
   cv_base=100.0*mean_base_sig/mean_base
@@ -733,60 +766,66 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   ;  p_time = time
   ;  pulse = sum / double(n)
   ;  sig = sqrt((sum2 / double(n) - pulse^2)*double(n)/double(n-1))
-  CasingMeanWfMax = max(reform(pulse[before_casing:out_of_pulse-bins_toward_wire]), nct)
-  Tzero_I=before_casing+nct
+  CasingMeanWfMax = max(reform(pulse[posw]), nct)
+  Tzero_I=posw[0]+nct
   print, 'Initial Tzero before baseline fix = ', time[Tzero_I], ' ns'
   tlow=time[Tzero_I] - 1.5*pulse_width_range
   thigh=time[Tzero_I] +1.5*pulse_width_range
   print,'tlow,thigh=',tlow,thigh
 
   baseline = dblarr(nb)
-  ;; tmpind = where(time lt tlow, count)
-  ;; if count gt 0 then begin
-  ;;   baseline[tmpind] = pulse[tmpind]
-  ;; endif
-  ;; tmpind = where(time gt thigh, count)
-  ;; if count gt 0 then begin
-  ;;   baseline[tmpind] = pulse[tmpind]
-  ;; endif
-  ;; tmpind=where((time ge tlow) and (time le thigh),count)
-  ;; if (count gt 0) then begin
-  ;;   baseline[tmpind]=0.0
-  ;; endif
+  tmpind = where(time lt tlow, count)
+  if count gt 0 then begin
+    baseline[tmpind] = pulse[tmpind]
+  endif
+  tmpind = where(time gt thigh, count)
+  if count gt 0 then begin
+    baseline[tmpind] = pulse[tmpind]
+  endif
+  tmpind=where((time ge tlow) and (time le thigh),count)
+  if (count gt 0) then begin
+    baseline[tmpind]=0.0
+  endif
+  baseline[postarget] = 0.0
   
   pulse = pulse - baseline
   
   CasingMeanSig=sig[Tzero_I]
   CasingMeanCV=100.0*CasingMeanSig/CasingMeanWfMax
 
-  if (out_of_pulse-bins_toward_wire-Tzero_I)*time_step lt thigh then begin
-    thigh = (out_of_pulse-bins_toward_wire-Tzero_I)*time_step
-  endif 
+  ;; if (out_of_pulse-bins_toward_wire-Tzero_I)*time_step lt thigh then begin
+  ;;   thigh = (out_of_pulse-bins_toward_wire-Tzero_I)*time_step
+  ;; endif 
   tmpind = where((time ge tlow) and (time le thigh), count)
   if count gt 0 then begin
     casing_power=total(reform(pulse[tmpind]),/double)
-    tmpmax = max(pulse[tmpind], Tzero_I)
+    tmpmax = max(pulse[tmpind])
     if (abs(casing_power) lt 1.0e-6) then casing_fwhm=0.0 else $
       casing_fwhm=(wl[1]-wl[0])*casing_power/tmpmax
-    Tzero=time[Tzero_I]
-    print,'Initial Tzero after baseline fix = ',Tzero,' ns'
   endif else begin
     casing_power = 0.0
     casing_fwhm = 0.0
   endelse 
   tmpind=0b
-  
+
+  Tzero = time[Tzero_I]
   ;; interpolate peak location
   istat = peak_int(time[[Tzero_I-1, Tzero_I, Tzero_I+1]], pulse[[Tzero_I-1, Tzero_I, Tzero_I+1]], time_int, pulse_int, offset)
   Tzero = time_int
   print, 'Initial Tzero after interpolation = ', Tzero, ' ns'
   
-  delta= -casing2Tzero/c2
+  delta= wire2Tzero/c2
   print,'delta=',delta, ' ns'
   print,''
   
   Tzero=Tzero+delta
   print,'Shifted Tzero',Tzero, ' ns'
+
+  if (use_apriori_tzero) then begin
+    print, 'Target is too close and contaminates wire signal!'
+    print, 'Now use the a priori Tzero (ns), ', ap_tzero
+    tzero = ap_tzero
+  endif 
   
   time=time-Tzero
   
@@ -853,6 +892,13 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   ;
   
   dwel_pulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time, pulse_model
+  pulse_model_name = 'NSF_DWEL_Pulse_Model'
+  ;; if the input data is from  Oz DWEL, keopsys lasers, 
+  if strcmp(laser_man, 'keopsys', /fold_case) then begin
+    DWEL_pulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, pulse_model
+    pulse_model_name = 'Oz_DWEL_Pulse_Model'
+  endif 
+
   p_troughloc = i_val[3]
   p_scdpeakloc = i_val[4]
   
@@ -863,7 +909,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
     'Program=dwel_baseline_sat_fix_cmd_nsf',$
     'Descr=DWEL New Base Fix Settings with casing power',$
     'Processing Date Time='+strtrim(systime(),2),$
-    'Pulse='+'NSF_DWEL_Pulse_Model',$
+    'Pulse='+pulse_model_name,$
     'Comment=Tzero is the time at which the peak of the output pulse occurs',$
     'Tzero='+strtrim(string(Tzero,format='(f10.3)'),2),$
     'srate='+strtrim(string(srate,format='(f10.2)'),2),$
@@ -898,7 +944,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   ;=====================================================================
   openw, osatfile, out_satfix_name,/get_lun,error=text_err
   if (text_err ne 0) then begin
-    print, strtrim('Halting DWEL_baseline_sat_fix', 2)
+    print, strtrim('Halting DWEL_static_wire_baseline_sat_fix', 2)
     print, strtrim(['Error opening output file '+strtrim(out_satfix_name,2)], 2)
     err=8
     goto, cleanup
@@ -1036,7 +1082,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
         ;; record the Tzero pulse from the wire
         ;; find the wire signal maximum
         wirewf = unsattemp
-        satflag = apply_sat_fix_nsf(reform(temp[sat_pos[si], *]), pulse_model, i_val, satfixedwf=unsattemp)
+        satflag = apply_sat_fix_nsf(reform(temp[sat_pos[si], *]), pulse_model, i_val, scale_mean, satfixedwf=unsattemp)
         if (satflag lt 2) then sat_mask[sat_pos[si],i]=1
         if (satflag le 0) then begin
           totbad=long(totbad)+1L
@@ -1050,9 +1096,8 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
           ;; paste the wire signal back
           tmpmax = max(unsattemp, tmpind)
           if (tmpind - i_val[2] + i_val[1] - 1) le out_of_pulse then begin
-            wiremax = max(wirewf[before_casing:out_of_pulse-bins_toward_wire], $
-              wiremaxind)
-            wiremaxind = wiremaxind + before_casing
+            wiremax = max(wirewf[posw], wiremaxind)
+            wiremaxind = wiremaxind + posw[0]
             unsattemp[wiremaxind-i_val[2]+i_val[1]:wiremaxind-i_val[2]+i_val[5]] $
               = unsattemp[wiremaxind-i_val[2]+i_val[1]:wiremaxind-i_val[2]+i_val[5]] $
               + pulse_model[i_val[1]:i_val[5]]*wiremax
@@ -1077,8 +1122,14 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
     endif
     
     ;now find the bad data such as baseline sun brightness
-    test=total(reform(temp[*,far_range:nb-1]),2)/float(nb-far_range)
-    pos_sun=where((test ge sun_thresh) or (test le -sun_thresh),npos_sun)
+    tmat=reform(temp[*,far_range:nb-1])
+    test=total(tmat,2)/float(nb-far_range)
+    test2=total(tmat^2,2)/float(nb-far_range)
+    test2=sqrt(test2-test^2)
+    test=test/test2
+    tmat=0b
+    test2=0b
+    pos_sun=where(abs(test) ge sun_thresh,npos_sun)
     if (npos_sun gt 0) then begin
       mask_all[pos_sun,i]=0b
       temp[pos_sun,*]=0.0
@@ -1149,7 +1200,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   DWEL_sat_info = [$
     'Program=dwel_baseline_sat_fix_cmd_nsf',$
     'Title=Parameters for Saturation Fixing',$
-    'Model='+strtrim('NSF_DWEL_pulse_model_dual',2),$
+    'Model='+strtrim(pulse_model_name,2),$
     'Sat test value='+strtrim(sat_test,2), $
     'Saturated_(pixels)='+strtrim(totsat,2), $
     'Bad_(pixels)='+strtrim(alltotbad,2), $

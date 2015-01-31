@@ -24,7 +24,7 @@ end
 
 % read the point cloud
 fid = fopen(inptclfile, 'r');
-data = textscan(fid, repmat('%f', 1, 17), 'HeaderLines', 3, 'Delimiter', ',');
+data = textscan(fid, repmat('%f', 1, 16), 'HeaderLines', 3, 'Delimiter', ',');
 fclose(fid);
 intensity = data{4};
 returnind = data{5};
@@ -33,8 +33,8 @@ shotnum = data{7};
 range = data{9};
 sampleind = data{13};
 lineind = data{14};
-p_int = data{16};
-p_fwhm = data{17};
+p_int = data{4};
+p_fwhm = data{16};
 clear data;
 
 % read saturation mask

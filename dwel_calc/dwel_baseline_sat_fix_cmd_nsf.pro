@@ -422,7 +422,11 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
       endelse 
     endif else begin
       ;; this is Oz DWEL
-      wire2Tzero = 0 ; needs update!!!
+      if wavelength eq 1064 then begin
+        wire2Tzero = 0.156 ; unit, meter
+      endif else begin
+        wire2Tzero = 0.124 ; unit, meter
+      endelse      
     endelse 
   endif 
   print, 'wire2Tzero to be used: ', wire2Tzero, ' m'
@@ -1385,7 +1389,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
     ]
   if keyword_set(wire) then begin
     DWEL_base_fix_info=[DWEL_base_fix_info,$
-      'comment='+strtrim('Wire info for correction of casing data follows:',2),$
+      'comment='+strtrim('Wire info for correction of casing data follows (wire_Tzero NOT delta corrected):',2),$
       'wire2Tzero(m)='+strtrim(string(wire2Tzero,format='(f14.3)'),2),$
       'wire_MeanMax='+strtrim(string(meanmaxwpulse,format='(f14.3)'),2),$
       'wire_MaxMean='+strtrim(string(maxmeanwpulse,format='(f14.3)'),2),$
