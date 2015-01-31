@@ -119,7 +119,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
   o_name=''
   ctfile=30
   before_casing=0
-  check=0b
+  check=1b
   err=0
   err_flag=0b
   wfile = 108
@@ -137,7 +137,8 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
   target_dn=512.0
   ; distance from casing (edge of casing) to the true Tzero position
   ;; default is the distance from scan mirror center to center of lambertian
-  ;; panel at nadir point
+  ;; panel at nadir point. Default here is for NSF. Will update later if
+  ;; needed. 
   casing2Tzero = 0.055 ; unit: meters
   ; the FWHM of outgoing pulse, ns
   outgoing_fwhm = 5.1
@@ -361,18 +362,18 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
   if (match ge 0) then print,'info match for old Tzero= ',strtrim(base_info[match],2)
   print,'Old Tzero=',Old_Tzero
 
-  ;; ;update the delta/casing2Tzero from early basefix if found
-  ;; match = -1
-  ;; for i=0,n_elements(base_info)-1 do if (strmatch(base_info[i],'*delta*',/fold_case)) then match=i
-  ;; if (match ge 0) then begin
-  ;;   text=strtrim(base_info[match],2)
-  ;;   print,'text=',text
-  ;;   k=strpos(text,'=')
-  ;;   delta=float(strtrim(strmid(text,k+1),2))
-  ;; endif
-  ;; if (match ge 0) then print,'info match for delta= ',strtrim(base_info[match],2)
-  ;; print,'delta=', delta
-  ;; casing2Tzero = delta*c2*(-1)
+  ;update the delta/casing2Tzero from early basefix if found
+  match = -1
+  for i=0,n_elements(base_info)-1 do if (strmatch(base_info[i],'*delta*',/fold_case)) then match=i
+  if (match ge 0) then begin
+    text=strtrim(base_info[match],2)
+    print,'text=',text
+    k=strpos(text,'=')
+    delta=float(strtrim(strmid(text,k+1),2))
+    print,'info match for delta= ',strtrim(base_info[match],2)
+    print,'Extracted delta=', delta
+    casing2Tzero = delta*c2*(-1)
+  endif
 
   ;; find out_of_pulse from early basefix
   match = -1
@@ -583,6 +584,8 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
     print,'adjusted def_wire_Max=',def_wire_Max
 
     ;find the wire2Tzero record provided in last basefix
+    ;; NOT IN USE NOW B/C TZERO IS FROM LINE-BY-LINE CASING RETURNS AFTER WIRE
+    ;; SIGNAL REMOVAL RATHER THAN SHOT-BY-SHOT WIRE RETURNS.
     match = -1
     for i=0,n_elements(base_info)-1 do if (strmatch(base_info[i],'*wire2Tzero*')) then match=i
     if (match ge 0) then begin

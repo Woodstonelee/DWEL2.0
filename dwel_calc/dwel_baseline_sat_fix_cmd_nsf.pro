@@ -128,21 +128,35 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
 
   finalsettings = { bsfixsettings, $
     ; position where you are free of the casing effects - for mean baseline
-    out_of_pulse:200}
-    ;; ;distance from casing (edge of casing) to the true Tzero position at mirror,
-    ;; ;unit=metres 
-    ;; casing2Tzero:0.055}
-    ;; ; distance between scan mirror center and the wire if present, unit=meters. 
-    ;; wire2Tzero:0.299}
+    out_of_pulse:200, $
+    ;distance from casing (edge of casing) to the true Tzero position at mirror,
+    ;unit=metres. Here default for NSF DWEL
+    casing2Tzero:0.055, $
+    ; distance between scan mirror center and the wire if present,
+    ; unit=meters. Here default for 1064 nm of NSF DWEL.
+    wire2Tzero:0.299}
   ;; if user provides settings
   if n_elements(settings) ne 0 or arg_present(settings) then begin
     finalsettings = update_struct_settings(finalsettings, settings)
   endif 
   out_of_pulse = finalsettings.out_of_pulse
-  ;; casing2Tzero = finalsettings.casing2Tzero
-  ;; wire2Tzero = finalsettings.wire2Tzero
+  casing2Tzero = finalsettings.casing2Tzero
+  wire2Tzero = finalsettings.wire2Tzero
 
-  casing2Tzero = 0.055 ; unit, meter, default is for NSF
+  casing2Tzero_user = 0b
+  wire2Tzero_user = 0b
+  if tag_exist(settings, 'casing2Tzero') then begin
+    ;; if user has designate a value for casing2Tzero, then we will stick to
+    ;; this value later rather than update it according to instrument model, NSF
+    ;; or Oz 
+    casing2Tzero_user = 1b
+  endif 
+  if tag_exist(settings, 'wire2Tzero') then begin
+    ;; if user has designate a value for casing2Tzero, then we will stick to
+    ;; this value later rather than update it according to instrument and laser
+    ;; wavelength. 
+    wire2Tzero_user = 1b
+  endif 
 
   ;======================================================================
   
@@ -318,9 +332,10 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
     laser_man = 'manlight'
   endelse  
   print,'Laser manufacturer = '+strtrim(laser_man)
-  if strcmp(laser_man, 'keopsys', /fold_case) then begin
+  if (~casing2Tzero_user) && strcmp(laser_man, 'keopsys', /fold_case) then begin
     casing2Tzero = 0.065 ; unit, meter
   endif 
+  print, 'Casing2Tzero to be used: ', casing2Tzero, ' m'
   
   ;input some planes of data from the ancillary file
   anc_data=lonarr(ns,nl,9)
@@ -397,6 +412,20 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
       target_dn = 509.0 
     endif 
   endelse
+
+  if (~wire2Tzero_user) then begin
+    if strcmp(laser_man, 'manlight', /fold_case) then begin
+      if wavelength eq 1064 then begin
+        wire2Tzero = 0.299 ; unit, meter
+      endif else begin
+        wire2Tzero = 0.414 ; unit, meter
+      endelse 
+    endif else begin
+      ;; this is Oz DWEL
+      wire2Tzero = 0 ; needs update!!!
+    endelse 
+  endif 
+  print, 'wire2Tzero to be used: ', wire2Tzero, ' m'
   
   ;close up the envi files
   envi_file_mng,id=infile_fid,/remove
@@ -1357,6 +1386,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   if keyword_set(wire) then begin
     DWEL_base_fix_info=[DWEL_base_fix_info,$
       'comment='+strtrim('Wire info for correction of casing data follows:',2),$
+      'wire2Tzero(m)='+strtrim(string(wire2Tzero,format='(f14.3)'),2),$
       'wire_MeanMax='+strtrim(string(meanmaxwpulse,format='(f14.3)'),2),$
       'wire_MaxMean='+strtrim(string(maxmeanwpulse,format='(f14.3)'),2),$
       'wire_Tzero='+strtrim(string(meantwzero,format='(f14.3)'),2),$

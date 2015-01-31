@@ -7,15 +7,6 @@
 ;Fake a data cube from a stationary scan for DWEL program to process easily
 ;later. 
 ;
-;
-; CATEGORY:
-;
-;
-;
-; CALLING SEQUENCE:
-;
-;
-;
 ; INPUTS:
 ;
 ;
@@ -33,26 +24,6 @@
 ;
 ;
 ; OPTIONAL OUTPUTS:
-;
-;
-;
-; COMMON BLOCKS:
-;
-;
-;
-; SIDE EFFECTS:
-;
-;
-;
-; RESTRICTIONS:
-;
-;
-;
-; PROCEDURE:
-;
-;
-;
-; EXAMPLE:
 ;
 ;
 ;

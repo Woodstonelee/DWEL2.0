@@ -8,13 +8,6 @@
 ;shot by shot. 
 ;
 ;
-; CATEGORY:
-;
-;
-;
-; CALLING SEQUENCE:
-;
-;
 ;
 ; INPUTS:
 ;
@@ -33,26 +26,6 @@
 ;
 ;
 ; OPTIONAL OUTPUTS:
-;
-;
-;
-; COMMON BLOCKS:
-;
-;
-;
-; SIDE EFFECTS:
-;
-;
-;
-; RESTRICTIONS:
-;
-;
-;
-; PROCEDURE:
-;
-;
-;
-; EXAMPLE:
 ;
 ;
 ;
