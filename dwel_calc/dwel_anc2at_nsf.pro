@@ -101,20 +101,20 @@ pro dwel_anc2at_nsf, DWEL_Anc_File, DWEL_AT_File, Max_Zenith_Angle, $
   ;find all of the EVI headers in the hdr file as defined by FID
   status=DWEL_get_headers(anc_fid,DWEL_headers)
   
-  if (not status) then begin
+  if (~status) then begin
     print, 'Processing stopped! Bad FID in EVI get_headers on input file!'
     err=2
     goto, cleanup
   endif
   
-  if (DWEL_headers.headers_present le 0s or not DWEL_headers.run_present) then begin
+  if ((DWEL_headers.headers_present le 0s) or (~DWEL_headers.run_present)) then begin
     print,'Processing stopped! Input File is NOT a valid EVI Cube file!'
     err=3
     goto, cleanup
   endif
   
   ;locate and set the scale factor for the average images
-  if (not DWEL_headers.base_present) then begin
+  if (~DWEL_headers.base_present) then begin
     base_scale=1.0
     if (type le 1) then begin
       scale=1000.0d0

@@ -134,7 +134,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   ;find all of the DWEL headers in the hdr file as defined by FID
   status=DWEL_get_headers(fid,DWEL_headers)
   
-  if (not status) then begin
+  if (~status) then begin
     print, 'Processing stopped! Bad FID in DWEL_get_headers on input file!'
     envi_file_mng,id=fid,/remove
     err=3
@@ -142,7 +142,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
     goto, cleanup
   endif
   
-  if (DWEL_headers.headers_present le 0s or not DWEL_headers.run_present) then begin
+  if ((DWEL_headers.headers_present le 0s) or (~DWEL_headers.run_present)) then begin
     print,'Processing stopped! Input File is NOT a valid DWEL Cube file!'
     print,'DWEL_headers.headers_present='+strtrim(string(DWEL_headers.headers_present),2)
     print,'DWEL_headers.run_present='+strtrim(string(DWEL_headers.run_present),2)
@@ -153,7 +153,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   endif
   
   ;locate and set the scale factor for the average images
-  if (not DWEL_headers.base_present) then begin
+  if (~DWEL_headers.base_present) then begin
     base_scale=1.0
     if (type le 1) then begin
       scale=1000.0d0
@@ -216,7 +216,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   print,'DWEL run Date & Time='+strtrim(DWEL_date_time,2)
   print,'DWEL run Description='+strtrim(DWEL_description_record,2)
   
-  if (not DWEL_headers.base_present) then begin
+  if (~DWEL_headers.base_present) then begin
     info = DWEL_headers.DWEL_scan_info
     ;set the default sampling rate
     match = -1
@@ -318,7 +318,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   if (val[0] gt 0.0) then scan_step=2000.0*!pi/val[0] else scan_step=0.0 ; unit of scan step: mrad
   sampling_ratio=beam_div/scan_step
 
-  if(not file_test(DWEL_Anc_File)) then begin
+  if(~file_test(DWEL_Anc_File)) then begin
     print,'Processing stopped! Ancillary file not present or not correct!'
     envi_file_mng,id=fid,/remove
     err=5
@@ -357,7 +357,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
   ;find all of the DWEL headers in the hdr file as defined by FID
   status=DWEL_get_headers(anc_fid,DWEL_anc_headers)
   
-  if (not status) then begin
+  if (~status) then begin
     print,'Processing stopped! Bad FID in DWEL_get_headers for Ancillary File'
     envi_file_mng,id=fid,/remove
     envi_file_mng,id=anc_fid,/remove
@@ -366,7 +366,7 @@ pro dwel_cube2at_nsf, DWEL_Cube_File, DWEL_Anc_File, DWEL_AT_File, $
     goto, cleanup
   endif
   
-  if (DWEL_anc_headers.headers_present le 0s or not DWEL_anc_headers.run_present) then begin
+  if ((DWEL_anc_headers.headers_present le 0s) or (~DWEL_anc_headers.run_present)) then begin
     print,'DWEL_anc_headers.headers_present='+strtrim(string(DWEL_anc_headers.headers_present),2)
     print,'DWEL_anc_headers.run_present='+strtrim(string(DWEL_anc_headers.run_present),2)
     print,'Processing stopped! Ancillary file NOT a valid DWEL Cube file'

@@ -209,7 +209,7 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   ;find all of the DWEL headers in the hdr file as defined by FID
   status=DWEL_get_headers(infile_fid,DWEL_headers)
   
-  if (not status) then begin
+  if (~status) then begin
     print,strtrim('Bad FID in DWEL_get_headers! DWEL Header setup cancelled!',2)
     print,'Input File: '+strtrim(FilteredFile,2)
     err_flag=1b

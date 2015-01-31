@@ -64,7 +64,7 @@ function list_dwel_headers,inanc,outanc,err
   ;find all of the DWEL headers in the hdr file as defined by FID
   status=DWEL_get_headers(anc_fid,DWEL_anc_headers)
   
-  if (not status) then begin
+  if (~status) then begin
     print,'Processing stopped! Bad FID in DWEL_get_headers for input File'
     envi_file_mng,id=anc_fid,/remove
     err=4
@@ -72,7 +72,7 @@ function list_dwel_headers,inanc,outanc,err
     goto, out
   endif
   
-  if (DWEL_anc_headers.headers_present le 0s or not DWEL_anc_headers.run_present) then begin
+  if ((DWEL_anc_headers.headers_present le 0s) or (~DWEL_anc_headers.run_present)) then begin
     print,'DWEL_anc_headers.headers_present='+strtrim(string(DWEL_anc_headers.headers_present),2)
     print,'DWEL_anc_headers.run_present='+strtrim(string(DWEL_anc_headers.run_present),2)
     print,'Processing stopped! File NOT a valid DWEL Cube file'

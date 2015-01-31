@@ -220,7 +220,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   f_path=file_dirname(fname)
   
   ; Open Ancillary file
-  if(not file_test(ancillaryfile_name)) then begin
+  if(~file_test(ancillaryfile_name)) then begin
     message_text=[ $
       'Ancillary file is not present',$
       'Expected Name='+strtrim(ancillaryfile_name,2)$
@@ -268,7 +268,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   ;find all of the DWEL headers in the hdr file as defined by FID
   status=dwel_get_headers(infile_fid,DWEL_headers)
   
-  if (not status) then begin
+  if (~status) then begin
     print,strtrim('Bad FID in DWEL_get_headers! DWEL Header setup cancelled!',2)
     print,'Input File: '+strtrim(DWELCubeFile,2)
     err=5
@@ -277,7 +277,7 @@ pro dwel_static_wire_baseline_sat_fix_cmd_nsf, DWELCubeFile, ancillaryfile_name,
   
   ;help,dwel_headers,/structures
   
-  if (DWEL_headers.headers_present le 0s or not DWEL_headers.run_present) then begin
+  if ((DWEL_headers.headers_present le 0s) or (~DWEL_headers.run_present)) then begin
     print,strtrim('Input file is NOT a valid DWEL Cube file!',2)
     print,'Input File: '+strtrim(DWELCubeFile,2)
     envi_file_mng,id=infile_fid,/remove

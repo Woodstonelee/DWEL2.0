@@ -86,14 +86,14 @@ pro dwel_swop_pulse_xc_nsf, inbsfixfile, inbsfixancfile, outxcfile, zen_tweak, $
     }
   ;; find all of the DWEL headers in the hdr file
   status = dwel_get_headers(infile_fid, DWEL_headers)
-  if (not status) then begin
+  if (~status) then begin
     print,strtrim('Bad call to DWEL_get_headers!!',2)
     print,'File='+strtrim(fname,2)
     envi_file_mng,id=infile_fid,/remove
     err_flag=1b
     goto,out
   endif
-  if (DWEL_headers.headers_present le 0s or not DWEL_headers.run_present) then begin
+  if ((DWEL_headers.headers_present le 0s) or (~DWEL_headers.run_present)) then begin
     print,strtrim('Input file is NOT a DWEL file',2)
     print,'File='+strtrim(fname,2)
     envi_file_mng,id=infile_fid,/remove
