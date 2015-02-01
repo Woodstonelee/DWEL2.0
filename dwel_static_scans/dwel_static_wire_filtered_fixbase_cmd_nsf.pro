@@ -77,6 +77,9 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   ;; get the time now as the start of processing
   starttime = systime(1)
 
+  outrangemin = -5.0
+  outrangemax = 93.5
+
   lun=99
   inlun=105
   ofile=101
@@ -821,7 +824,7 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   tmpind = where((time ge tlow) and (time le thigh), count)
   if count gt 0 then begin
     casing_power=total(reform(pulse[tmpind]),/double)
-    tmpmax = max(pulse[tmpind], Tzero_I)
+    tmpmax = max(pulse[tmpind])
     if (abs(casing_power) lt 1.0e-6) then casing_fwhm=0.0 else $
       casing_fwhm=(wl[1]-wl[0])*casing_power/tmpmax
   endif else begin
@@ -833,6 +836,7 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   ;; interpolate peak location
   istat = peak_int(time[[Tzero_I-1, Tzero_I, Tzero_I+1]], pulse[[Tzero_I-1, Tzero_I, Tzero_I+1]], time_int, pulse_int, offset)
   Tzero = float(time_int)
+  CasingMeanWfMaxInt = pulse_int
   print, 'Initial Tzero after interpolation = ', Tzero, ' ns'
   
   posscal=where((t_zerol eq 0.0) or (line_scale eq 0.0),nscal)
@@ -964,6 +968,22 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   ns_out=ns
   wl_out=fltarr(nb_out)
   wl_range=c2*time
+
+  ;; check if the available range values are within the given output range
+  ;; limits between outrangemin and outrangemax. Because the digitizer start
+  ;; time changes, it is possible that the digitizer starts too early or too
+  ;; late that the recorded available ranges cannot cover the given output
+  ;; range. If so, shrink the output range by 2 meter, more than 3 times of the
+  ;; standard deviation of wire signal position obtained from stationary scans
+  ;; with wire. 
+  wl_range_max = max(wl_range, min=wl_range_min)
+  if wl_range_max le outrangemax then begin
+    outrangemax = wl_range_max - 2.0
+  endif 
+  if wl_range_min ge outrangemin then begin
+    outrangemin = wl_range_min + 2.0
+  endif 
+  print, 'Output range limit: [', outrangemin, ', ', outrangemax, ']'
   
   ;Open the output file for BIL tiling
   text_err=0
@@ -1095,8 +1115,6 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
   ;;   print, 'Possible maximum range = ' + strtrim(string(outrangemax + 1.0), 2)
   ;;   print, 'Given maximum range = 93.5'
   ;; endif 
-  outrangemin = -5.0
-  outrangemax = 93.5
   print, 'Output range (meter) = [' + strtrim(string(outrangemin), 2) + ', ' + $
     strtrim(string(outrangemax), 2) + ']'
   posk=where((wl_out ge outrangemin) and (wl_out le outrangemax),nb_resamp)
@@ -1204,6 +1222,17 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
         offset)
       wire_tzero[j] = time_int + delta
 
+      ;; it is possible that a waveform misses wire signal and wire_tzero[j] is
+      ;; not right. check wire_tzero[j] before further processing. If it is not
+      ;; good, then put this shot as invalid. 
+;; or (abs(pulse_int-CasingMeanWfMax) lt 3*mean_base_sig*scale_mean) or (abs(wire_tzero[j] - tzero) gt 15*time_step) 
+      if (finite(time_int, /nan)) then begin
+        mask_all[j, i] = 0
+        wire_tzero[j] = 0
+        print, 'Wire signal is bad at sample, ', j+1, ', line, ', i+1
+        continue
+      endif 
+
       ;remove wire signal from waveform
       ;get a pulse from the pulse model scaled by interpolated pulse peak
       wire_pulse = interpol(pulse_int*pulse_model, p_time, $
@@ -1229,22 +1258,39 @@ pro dwel_static_wire_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdat
         print, 'Shot numbeer='+strtrim(string(j+1), 2)
         print,'Tzero,wire_tzero=',Tzero,wire_tzero[j]
         print, 'Tzero intensiyt=', strtrim(string(tmpmax), 2)
-        ;; mask_all[j,i] = 0
-        ;;continue
-        err_flag=1b
-        err=33
-        goto,cleanup
-      endif else begin
-        ; printf, wfile, strtrim('tzero,intensity,time[k],int[k],sample,line,band', 2)
-        buf = string(wire_tzero[j], pulse_int, $
-          (w_maxI)*time_step, tmpmax, j+1, i+1, w_maxI, $
-          shot_num, $
-          format='(4f14.3,4i10)') 
-        buf=strtrim(strcompress(buf),2)
-        while (((ii = strpos(buf, ' '))) ne -1) do $
-            strput, buf, ',', ii
-        printf,wfile,buf
-      endelse 
+        ;; now use mean tzero
+        wl_loc = 0b
+        wl_loc=fltarr(nb_out)
+        wl_loc=wl_range
+        posk=where(wl_loc lt 0.0,nposk)
+        wlk=wl_loc[posk[nposk-1]]
+        lambda[j]=-wlk/(time_step*c2)
+        wl_new=wl_loc-wlk
+        posk=0b
+        posk=where((wl_new ge outrangemin) and (wl_new le outrangemax),nb_loc)
+        if (nb_loc ne nb_resamp) then begin
+          mask_all[j,i] = 0
+          continue
+        endif else begin
+          wire_tzero[j] = Tzero
+          pulse_int = CasingMeanWfMaxInt
+          w_maxI = Tzero_I
+          tmpmax = CasingMeanWfMax
+        endelse 
+        ;; err_flag=1b
+        ;; err=33
+        ;; goto,cleanup
+      endif
+      ; printf, wfile, strtrim('tzero,intensity,time[k],int[k],sample,line,band', 2)
+      buf = string(wire_tzero[j], pulse_int, $
+        (w_maxI)*time_step, tmpmax, j+1, i+1, w_maxI, $
+        shot_num, $
+        format='(4f14.3,4i10)') 
+      buf=strtrim(strcompress(buf),2)
+      while (((ii = strpos(buf, ' '))) ne -1) do $
+          strput, buf, ',', ii
+      printf,wfile,buf
+
       tmpwf = lambda * shift(tmpwf, -1) + (1.0 - lambda) * tmpwf
       retemp[j, *] = tmpwf[posk]      
     endfor 

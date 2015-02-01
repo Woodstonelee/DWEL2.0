@@ -1467,7 +1467,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;; threshold to filter out noise points.
   finalsettings = { ptclsettings, $
     cal_dat:0, $
-    DWEL_az_n:0, $ ; unit, deg
+    DWEL_az_n:0.0, $ ; unit, deg
     runcode:round(systime(/julian)*10), $
     save_zero_hits:1, $
     add_dwel:0, $
@@ -1482,7 +1482,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     sdevfac:2.0, $
     r_thresh:0.175, $
     sievefac:10.0, $
-    cal_par:[-1,-1,-1,-1,-1,-1] $ ;[c0, c1, c2, c3, c4, b]
+    cal_par:dblarr(6)-1.0 $ ;[c0, c1, c2, c3, c4, b]
     }
   ;; tag names we need in settings
   setting_tag_names = tag_names(finalsettings)
@@ -1526,8 +1526,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;Open input and ancillary files
   envi_open_file, infile, r_fid=fid,/no_realize,/no_interactive_query
   if (fid eq -1) then begin
-    print,strtrim('Error opening input DWEL file',2)
-    print,'Input File: '+strtrim(infile,2)
+    print,strtrim('Error opening input DWEL file:',2)+strtrim(infile,2)
     err=1
     goto,out
   endif
@@ -1722,6 +1721,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   
   print,'wavelength='+strtrim(string(wavelength),2)
 
+  match = -1
   ; get the wire flag 
   base_info = DWEL_headers.DWEL_base_fix_info
   for i=0,n_elements(base_info)-1 do begin

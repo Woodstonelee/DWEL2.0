@@ -24,6 +24,10 @@ end
 
 % read the point cloud
 fid = fopen(inptclfile, 'r');
+if fid == -1 
+    fprintf('Error openning input point cloud file: %s\n', inptclfile)
+    return
+end
 data = textscan(fid, repmat('%f', 1, 16), 'HeaderLines', 3, 'Delimiter', ',');
 fclose(fid);
 intensity = data{4};
