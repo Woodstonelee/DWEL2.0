@@ -311,7 +311,7 @@ pro dwel2cube_cmd_nsf, DWEL_H5File, Config_File, DataCube_File, Wavelength, $
   Name_Info=['Program=dwel2cube_cmd_nsf',$
     'Original DWEL HDF File='+strtrim(f_base,2)]
   Site_Info=[ $
-    'Scan Description='+strtrim('DWEL_nsf Scan: '+strtrim(consum,2),2),$
+    'Scan Description='+strtrim('DWEL Scan: '+strtrim(consum,2),2),$
     'DWEL Date Time='+strtrim(date_time,2),$
     'Processing Date Time='+strtrim(systime(),2)]
   Scan_Info=[ $

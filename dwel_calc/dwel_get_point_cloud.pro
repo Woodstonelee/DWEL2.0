@@ -1430,6 +1430,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
 
   resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
   resolve_routine, 'DWEL_ITPULSE_MODEL_DUAL_NSF', /compile_full_file, /either
+  resolve_routine, 'DWEL_ITPULSE_MODEL_DUAL_OZ', /compile_full_file, /either
   resolve_routine, 'DT2NB', /compile_full_file, /either
   resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
   resolve_routine, 'CMREPLICATE', /compile_full_file, /either
@@ -1826,11 +1827,15 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     i_scale=1.0
   endelse
 
+  print, 'DWEL calibration Const='+strtrim(string(dwel_cal,format='(f14.3)'),2)
+  print, 'DWEL calibration range power='+strtrim(string(rpow,format='(f14.3)'),2)
+  print, 'DWEL K(r) model='+strtrim(string(eff_par,format='(f14.3)'),2)
+
   DWEL_pointcloud_info=[DWEL_pointcloud_info,$
-    'DWEL beam wavelength='+strtrim(string(wavelength,format='(i10)'),2),$
-    'DWEL beam divergence='+strtrim(string(DWEL_div,format='(f10.3)'),2),$
-    'DWEL calibration Const='+strtrim(string(dwel_cal,format='(f10.3)'),2),$
-    'DWEL calibration range power='+strtrim(string(rpow,format='(f10.3)'),2) $
+    'DWEL beam wavelength='+strtrim(string(wavelength,format='(i14)'),2),$
+    'DWEL beam divergence='+strtrim(string(DWEL_div,format='(f14.3)'),2),$
+    'DWEL calibration Const='+strtrim(string(dwel_cal,format='(f14.3)'),2),$
+    'DWEL calibration range power='+strtrim(string(rpow,format='(f14.3)'),2) $
     ]
   
   mask=bytarr(nsamples,nlines)
@@ -1853,6 +1858,9 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   
   ; Call routine to set up pulse model
   dwel_itpulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
+  if strcmp(laser_man, 'keopsys', /fold_case) then begin
+    dwel_itpulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
+  endif 
   
   ;S0 is a scale factor that relates the FWHM of the standard pulse and the mean FWHM of the data
   ;it has been chosen to be best for data in between ND015 (maybe 30% saturated) and ND100 (no saturated)
