@@ -1,8 +1,8 @@
 ;======================================================================
-pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error 
+pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
 
   compile_opt idl2
-
+  
   ;set data
   zero=0.0
   error=0
@@ -13,6 +13,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   tempfile=103
   bfile=105
   rfile=107
+  sfile=110
+  ttfile=111
   pfile=108
   ppfile=109
   fid=30
@@ -20,8 +22,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   inlun=105
   
   ;set local parameters
-  num_test=2
-  test_num=20
+  num_test=1
+  test_num=25
   range_extent=5.0 ; unit, meter, half extent for pulse integral calculation
   noise_hits=10
   
@@ -52,10 +54,19 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   infile=(*pb_stats).infile
   if ((*pb_meta).Zero_Hit_Option) then add='_addgap' else add=''
   if ((*pb_meta).Add_DWEL) then add=add+'_adddwel' else add=add+''
-
+  
   laser_man = (*pb_meta).laser_man
-
-  cvthresh=threshold/512.0
+  
+  cvthresh=0.01
+  skewthresh=1.0
+  
+  print,'b_thresh='+strtrim(string(b_thresh),2)
+  print, 'r_thresh=' + strtrim(string(r_thresh), 2)
+  print, 'sieve_thresh=' + strtrim(string(sieve_thresh), 2)
+  print, 'cvthresh=' + strtrim(string(cvthresh), 2)
+  print, 'skewthresh=' + strtrim(string(skewthresh), 2)
+  
+  ;;  cvthresh=threshold/512.0
   
   ; Open input and ancillary files
   envi_open_file,infile,r_fid=fid,/no_realize,/no_interactive_query
@@ -72,17 +83,17 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get number of bytes in input file data
   nbytes=dt2nb(dt)
-
+  
   if (save_br or save_pfilt) then begin
     f_base=file_basename(infile)
-  ;set up a base structure for the DWEL headers
+    ;set up a base structure for the DWEL headers
     DWEL_headers={ $
-         f_base:f_base $
-       }
-  ;find all of the DWEL headers in the hdr file as defined by FID
+      f_base:f_base $
+      }
+    ;find all of the DWEL headers in the hdr file as defined by FID
     status=dwel_get_headers(fid,DWEL_headers)
   endif
-
+  
   ;now remove the fid
   envi_file_mng,id=fid,/remove
   
@@ -133,7 +144,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   printf,tfile,strtrim('[DWEL Point Cloud Data]',2)
   printf,tfile,strtrim('Run made at: '+time_date,2)
-  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,FWHM',2)
+  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,d0',2)
   flush,tfile
   
   ;see if the metadata file exists & remove if it does!
@@ -176,7 +187,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   printf,mfile,'Run_Number='+strtrim(string((*pb_meta).Run_Number),2)
   printf,mfile,'Description='+strtrim((*pb_meta).Description,2)
   printf,mfile,'Lasers='+strtrim((*pb_meta).laser_man,2)
-  printf,mfile,'Wire_Flag='+strtrim(string((*pb_meta).wire_flag,format='(f10)'),2)
+  printf,mfile,'Wire_Flag='+strtrim(string((*pb_meta).wire_flag,format='(i10)'),2)
   printf,mfile,'Input_Path='+strtrim((*pb_meta).Input_Path,2)
   printf,mfile,'Input_File='+strtrim((*pb_meta).Input_File,2)
   printf,mfile,'Acquisition_Date_Time=',strtrim((*pb_meta).Acquisition_Date_Time,2)
@@ -184,28 +195,28 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   printf,mfile,'Ancillary_File='+strtrim((*pb_meta).Ancillary_File,2)
   printf,mfile,'Projection='+strtrim((*pb_meta).Projection,2)
   printf,mfile,'DWEL_AppRefl='+strtrim(string((*pb_meta).DWEL_AppRefl),2)
-  printf,mfile,'DWEL_Height(m)='+strtrim(string((*pb_meta).DWEL_Height,format='(f10.2)'),2)
-  printf,mfile,'DWEL_Az_North='+strtrim(string((*pb_meta).DWEL_Az_North,format='(f10.2)'),2)
-  printf,mfile,'Max_Zenith_Angle='+strtrim(string((*pb_meta).Max_Zenith_Angle,format='(f10.2)'),2)
-  printf,mfile,'Range_Step(m)='+strtrim(string((*pb_meta).Range_Step,format='(f10.4)'),2)
-  printf,mfile,'Threshold='+strtrim(string((*pb_meta).Threshold,format='(f10.4)'),2)
-  printf,mfile,'b_thresh='+strtrim(string((*pb_meta).b_thresh,format='(f10.4)'),2) 
-  printf,mfile,'sieve_thresh='+strtrim(string((*pb_meta).sieve_thresh,format='(f10.4)'),2)
-  printf,mfile,'r_thresh='+strtrim(string((*pb_meta).r_thresh,format='(f10.4)'),2)
-  printf,mfile,'Fneg='+strtrim(string((*pb_meta).Fneg,format='(f10.4)'),2)
-  printf,mfile,'h1='+strtrim(string((*pb_meta).h1,format='(i10)'),2)
-  printf,mfile,'h2='+strtrim(string((*pb_meta).h2,format='(i10)'),2)
-  printf,mfile,'Wavelength='+strtrim(string((*pb_meta).wavelength,format='(i10)'),2)
-  printf,mfile,'Zero_Hit_Option='+strtrim(string((*pb_meta).Zero_Hit_Option,format='(i10)'),2)
-  printf,mfile,'Add_DWEL='+strtrim(string((*pb_meta).Add_DWEL,format='(i10)'),2)
-  printf,mfile,'X_scale='+strtrim(string((*pb_meta).X_scale,format='(f10.3)'),2)
-  printf,mfile,'Y_scale='+strtrim(string((*pb_meta).Y_scale,format='(f10.3)'),2)
-  printf,mfile,'Z_scale='+strtrim(string((*pb_meta).Z_scale,format='(f10.3)'),2)
-  printf,mfile,'X_offset='+strtrim(string((*pb_meta).X_offset,format='(f10.3)'),2)
-  printf,mfile,'Y_offset='+strtrim(string((*pb_meta).Y_offset,format='(f10.3)'),2)
-  printf,mfile,'Z_offset='+strtrim(string((*pb_meta).Z_offset,format='(f10.3)'),2)
-  printf,mfile,'I_Scale='+strtrim(string((*pb_meta).I_Scale,format='(f10.3)'),2)
-
+  printf,mfile,'DWEL_Height(m)='+strtrim(string((*pb_meta).DWEL_Height,format='(f14.2)'),2)
+  printf,mfile,'DWEL_Az_North='+strtrim(string((*pb_meta).DWEL_Az_North,format='(f14.2)'),2)
+  printf,mfile,'Max_Zenith_Angle='+strtrim(string((*pb_meta).Max_Zenith_Angle,format='(f14.2)'),2)
+  printf,mfile,'Range_Step(m)='+strtrim(string((*pb_meta).Range_Step,format='(f14.4)'),2)
+  printf,mfile,'Threshold='+strtrim(string((*pb_meta).Threshold,format='(f14.4)'),2)
+  printf,mfile,'b_thresh='+strtrim(string((*pb_meta).b_thresh,format='(f14.4)'),2)
+  printf,mfile,'sieve_thresh='+strtrim(string((*pb_meta).sieve_thresh,format='(f14.4)'),2)
+  printf,mfile,'r_thresh='+strtrim(string((*pb_meta).r_thresh,format='(f14.4)'),2)
+  printf,mfile,'Fneg='+strtrim(string((*pb_meta).Fneg,format='(f14.4)'),2)
+  printf,mfile,'h1='+strtrim(string((*pb_meta).h1,format='(i14)'),2)
+  printf,mfile,'h2='+strtrim(string((*pb_meta).h2,format='(i14)'),2)
+  printf,mfile,'Wavelength='+strtrim(string((*pb_meta).wavelength,format='(i14)'),2)
+  printf,mfile,'Zero_Hit_Option='+strtrim(string((*pb_meta).Zero_Hit_Option,format='(i14)'),2)
+  printf,mfile,'Add_DWEL='+strtrim(string((*pb_meta).Add_DWEL,format='(i14)'),2)
+  printf,mfile,'X_scale='+strtrim(string((*pb_meta).X_scale,format='(f14.3)'),2)
+  printf,mfile,'Y_scale='+strtrim(string((*pb_meta).Y_scale,format='(f14.3)'),2)
+  printf,mfile,'Z_scale='+strtrim(string((*pb_meta).Z_scale,format='(f14.3)'),2)
+  printf,mfile,'X_offset='+strtrim(string((*pb_meta).X_offset,format='(f14.3)'),2)
+  printf,mfile,'Y_offset='+strtrim(string((*pb_meta).Y_offset,format='(f14.3)'),2)
+  printf,mfile,'Z_offset='+strtrim(string((*pb_meta).Z_offset,format='(f14.3)'),2)
+  printf,mfile,'I_Scale='+strtrim(string((*pb_meta).I_Scale,format='(f14.3)'),2)
+  
   flush,mfile
   
   ; Get path and file name as separate strings
@@ -301,10 +312,13 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   value=max(ppad,max_point)
   ipscal=float(ppad[max_point])/mean(ppad[max_point-1:max_point+1])
-  print,'ipscal=',ipscal
-  print,'elements in ppad=',n_elements(ppad)
-  print,'mid point=',n_elements(ppad)/2
-  print,'max_point=',max_point
+  ips_factor=1.000
+  ;  ipscal=1.0
+  print,'old ipscal=',ipscal*ips_factor
+  print,'elements in ppad='+strtrim(string(n_elements(ppad)),2)
+  print,'mid point='+strtrim(string(n_elements(ppad)/2),2)
+  print,'max_point='+strtrim(string(max_point),2)
+  print,'max_value='+strtrim(string(value),2)
   
   num_pad=n_elements(ppad)
   fnum=float(num_pad)
@@ -399,9 +413,13 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     if((n_dot le 0) or (n_base-n_dot ne 4)) then begin
       b_file=strtrim(l_file,2)+'_B_image.img'
       r_file=strtrim(l_file,2)+'_R_image.img'
+      s_file=strtrim(l_file,2)+'_S_image.img'
+      t_file=strtrim(l_file,2)+'_T_image.img'
     endif else begin
       b_file=strtrim(strmid(l_file,0,n_dot),2)+'_B_image.img'
       r_file=strtrim(strmid(l_file,0,n_dot),2)+'_R_image.img'
+      s_file=strtrim(strmid(l_file,0,n_dot),2)+'_S_image.img'
+      t_file=strtrim(strmid(l_file,0,n_dot),2)+'_T_image.img'
     endelse
     ;see if the b file exists & remove if it does!
     if(file_test(b_file)) then begin
@@ -461,6 +479,68 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       print,'Error Type =',strtrim(string(!ERROR_STATE.MSG),2)
       print,'Sys_Error Type =',strtrim(string(!ERROR_STATE.SYS_MSG),2)
       error=7
+      goto, cleanup
+    endif
+    ;see if the S file exists & remove if it does!
+    if(file_test(s_file)) then begin
+      fids=envi_get_file_ids()
+      if(fids[0] eq -1) then begin
+        file_delete, s_file,/quiet
+        print,'old S file deleted'
+      endif else begin
+        for i=0,n_elements(fids)-1 do begin
+          envi_file_query,fids[i],fname=tname
+          if (strtrim(strlowcase(s_file),2) eq $
+            strtrim(strlowcase(tname),2)) then begin
+            envi_file_mng,id=fids[i],/remove
+            print,'old S file removed from ENVI'
+          endif
+        endfor
+        file_delete, s_file,/quiet
+        print,'old S file deleted'
+      endelse
+    endif
+    ;open S file
+    text_err=0
+    openw, sfile, s_file,/get_lun,error=text_err
+    if (text_err ne 0) then begin
+      print,'Error opening R file in point cloud!!'
+      print,'File Name =',strtrim(r_file,2)
+      print,'text_err=',text_err
+      print,'Error Type =',strtrim(string(!ERROR_STATE.MSG),2)
+      print,'Sys_Error Type =',strtrim(string(!ERROR_STATE.SYS_MSG),2)
+      error=9
+      goto, cleanup
+    endif
+    ;see if the T file exists & remove if it does!
+    if(file_test(t_file)) then begin
+      fids=envi_get_file_ids()
+      if(fids[0] eq -1) then begin
+        file_delete, t_file,/quiet
+        print,'old T file deleted'
+      endif else begin
+        for i=0,n_elements(fids)-1 do begin
+          envi_file_query,fids[i],fname=tname
+          if (strtrim(strlowcase(t_file),2) eq $
+            strtrim(strlowcase(tname),2)) then begin
+            envi_file_mng,id=fids[i],/remove
+            print,'old T file removed from ENVI'
+          endif
+        endfor
+        file_delete, t_file,/quiet
+        print,'old T file deleted'
+      endelse
+    endif
+    ;open T file
+    text_err=0
+    openw, ttfile, t_file,/get_lun,error=text_err
+    if (text_err ne 0) then begin
+      print,'Error opening T file in point cloud!!'
+      print,'File Name =',strtrim(t_file,2)
+      print,'text_err=',text_err
+      print,'Error Type =',strtrim(string(!ERROR_STATE.MSG),2)
+      print,'Sys_Error Type =',strtrim(string(!ERROR_STATE.SYS_MSG),2)
+      error=59
       goto, cleanup
     endif
   endif
@@ -568,12 +648,12 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   ;check if you are going to add the DWEL position records
   ;these are just the top and bottom of the DWEL so they are they only for geometry
   if ((*pb_meta).Add_DWEL gt 0) then begin
-    buf=string(0.0,0.0,0.0,0.0,0,0,0,DWEL_num,0.0,0.0,0.0,0.0,0,0,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10)')
+    buf=string(0.0,0.0,0.0,0.0,0,0,0,DWEL_num,0.0,0.0,0.0,0.0,0,0,0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,f14.3)')
     buf=strtrim(strcompress(buf),2)
     while (((ii = strpos(buf, ' '))) ne -1) do $
       strput, buf, ',', ii
     printf,tfile,buf
-    buf=string(0.0,0.0,(*pb_meta).DWEL_Height,0.0,0,0,0,DWEL_num,0.0,0.0,0.0,0.0,0,0,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10)')
+    buf=string(0.0,0.0,(*pb_meta).DWEL_Height,0.0,0,0,0,DWEL_num,0.0,0.0,0.0,0.0,0,0,0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,f14.3)')
     buf=strtrim(strcompress(buf),2)
     while (((ii = strpos(buf, ' '))) ne -1) do $
       strput, buf, ',', ii
@@ -597,7 +677,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     error=9
     goto,cleanup
   endif
-
+  
   pulse = (*pb_stats).pulse
   p_range = (*pb_stats).p_range
   pulse_len = n_elements(pulse)
@@ -609,27 +689,44 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   bad_interpol=0L
   nump=0
   nump_new=0
+
+  accumintens=0.0d0
+  accumnum=0.0d0
+  accumd0=0.0d0
+  
+  ;set up values to get ipscal on the fly!
+  max_pvalue=float(max(ppad,mpos))
+  ppos=findgen(n_elements(ppad))-float(mpos)
+  x_out=[-1.0,0.0,1.0]
+  check_ipscal=0.0
+  num_ipscal=0L
+
   ; Loop through each line, calculate B and apply filter.
   ; Write to output file.
-  for i=0,nlines-1 do begin 
+  for i=0,nlines-1 do begin
     ;    inline = envi_get_slice(fid=fid, /bil, pos=pos, line=i, xs=0, xe=nsamples-1)
+    inline=make_array(nsamples,nbands,type=dt)
     pointsz=long64(i)*long64(bufrs)
     inline=read_binary(inlun,data_start=pointsz,data_dims=[nsamples,nbands],data_type=dt)
     if (save_br) then begin
       B_Mat=fltarr(nsamples,nbands)
       R_Mat=fltarr(nsamples,nbands)
+      S_Mat=fltarr(nsamples,nbands)
+      T_Mat=fltarr(nsamples,nbands)
     endif
     if (save_pfilt) then begin
       P_Mat=make_array(nsamples,nbands,type=dt)
     endif
     ;now go over the BIL slice for each sample and find points
-   for j=0, nsamples-1 do begin 
+    for j=0, nsamples-1 do begin
       b=fltarr(nbands)
       db=fltarr(nbands)
       d2b=fltarr(nbands)
       r=fltarr(nbands)
       dr=fltarr(nbands)
       d2r=fltarr(nbands)
+      mtemp=fltarr(nbands)
+      new_sig=fltarr(nbands)
       if ((*pb_stats).mask[j,i] le 0b) then begin
         oi_accum[j,i]=0l
         sum_accum[j,i]=0.0
@@ -648,7 +745,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       ;Pad data to allow convolution to the ends of the original array
       ;note using mean in padding areas
       temp=float(reform(inline[j,*]))
-      t=[replicate(mean(temp[0:19]),num_pad),temp,replicate(mean(temp[nbands-20:nbands-1]),num_pad)]
+      t=[replicate(mean(temp[0:19],/double),num_pad),temp,replicate(mean(temp[nbands-20:nbands-1],/double),num_pad)]
       temp=0b
       c = convol(t,ppad,pnorm)
       dc=deriv(c)
@@ -658,16 +755,38 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       d2b = d2c[num_pad:num_pad+nbands-1]/(h^2)
       ;
       ;get moving average value variance to compute correlation
+      mtemp=smooth(t,num_pad)
       temp = sqrt(float(smooth(t^2,num_pad)))
       temp = temp[num_pad:num_pad+nbands-1]
+      local_sig = sqrt(abs(float(smooth(t^2,num_pad))-mtemp^2))
+      ;new code for extra test
+      nlent=n_elements(t)
+      temp3=fltarr(nlent)
+      temp3=float(smooth((t-mtemp)^3,num_pad))
+      pos1=where(local_sig gt 0.05,npos1,compl=pos2,ncompl=npos2)
+      temp3[pos1]=temp3[pos1]/(local_sig[pos1]^3)
+      if(npos2 gt 0) then temp3[pos2]=0.0
+      pos1=0b
+      pos2=0b
+      temp3=median(temp3,31,/double)
+      new_sig=temp3[num_pad:num_pad+nbands-1]
+      temp3=0b
+      ;
+      ;end of new code
+      
+      mtemp=0b
+      mtemp=local_sig[num_pad:num_pad+nbands-1]
+      local_sig=0b
       t = t[num_pad:num_pad+nbands-1]
       ;
-      bs1 = shift(temp,1)
-      bsm1 = shift(temp,-1)
-      test=abs(temp) le b_thresh
-      test1=abs(bs1) le b_thresh
-      test2=abs(bsm1) le b_thresh
-      w = where((test and test1 and test2), nw, compl=fok, ncompl=nfok)
+      ;; bs1 = shift(temp,1)
+      ;; bsm1 = shift(temp,-1)
+      ;; test=abs(temp) le b_thresh
+      ;; test1=abs(bs1) le b_thresh
+      ;; test2=abs(bsm1) le b_thresh
+      ;; w = where((test and test1 and test2), nw, compl=fok, ncompl=nfok)
+
+      w = where(((mtemp le b_thresh) or (new_sig lt skewthresh)), nw, compl=fok, ncompl=nfok)
       if (nw gt 0) then begin
         r[w] = 0.0
         dr[w]=0.0
@@ -682,7 +801,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         dr=db*psum/temp
         d2r=d2b*psum/temp
       endelse
-      ;temp=0b
+      temp=0b
       ; Check neighbourhoods of derivative and second derivative of correlation for peaks
       bs1 = shift(dr,1)
       bs2=shift(dr,2)
@@ -712,6 +831,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           endfor
           peaks=peaks[0:nump_new-1]
         endif
+        ; check
         if (nump_new gt 0) then begin
           kk=0
           peaks_out=peaks
@@ -744,7 +864,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
                 if (b[posm2] lt b[peaks[k]]) then score=score+2
               endif
             endif
-            if (score ge 6) then begin
+            if (score ge 5) then begin
               peaks_out[kk]=peaks[k]
               kk=kk+1
             endif
@@ -774,6 +894,21 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           if (istat gt 0) then bad_interpol=long(bad_interpol)+1L
           rg[k]=rg_peak
           speaks[k]=peaks[k]+offset
+          delta_r=(rg_peak-rg_loc[1])/(*pb_meta).range_step
+          x_in=ppos+delta_r
+          y_out=interpol(ppad,x_in,x_out)
+          ipscal=ips_factor*max_pvalue/mean(y_out,/double)
+          ;print,''
+          ;print,'rg_peak='+strtrim(string(rg_peak),2)
+          ;print,'rg_loc='+strtrim(string(rg_loc[1]),2)
+          ;print,'range_step='+strtrim(string((*pb_meta).range_step),2)
+          ;print,'delta_r='+strtrim(string(delta_r),2)
+          ;print,'y_in='+strtrim(string(ppad[[mpos-1,mpos,mpos+1]]),2)
+          ;print,'y_out='+strtrim(string(y_out),2)
+          ;print,'ipscal='+strtrim(string(ipscal),2)
+          check_ipscal=check_ipscal+float(ipscal)
+          num_ipscal=long(num_ipscal)+1L
+
           intensity[k]=ipscal*mean(t[peaks[k]-1:peaks[k]+1])
           I2[k]=b[speaks[k]]
           esum=esum+float(intensity[k])
@@ -822,15 +957,21 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
             endif
             posr=0b
           endif
+          ;accumulate check on shrinkage
+          if (nump_new eq 1) then begin
+            accumintens=accumintens+double(t[peaks[0]])
+            accumnum=accumnum+1.0d0
+            accumd0=accumd0+double(d_out[0])
+          endif
           ;
+
           ;Code to save information for debugging the linear solution for overlap
           ;======================================================================
           saving=0b
           if (ovdebug) then begin
-            if ((nump_new ge num_test) and (iprint le test_num) and (ls_res gt $
-              3.5)) then begin
-;;              and (j gt 100) and (j lt 200) and (i gt 50) $
-;;              ) then begin
+            if ((nump_new eq num_test) and (iprint le test_num) and (ls_res gt 3.5) $
+              and (j gt 100) and (j lt 200) and (i gt 50) $
+              ) then begin
               printf,tempfile,''
               printf,tempfile,'Test Case Number='+strtrim(string(iprint+1),2)
               printf,tempfile,'Sample='+strtrim(string(j+1),2)
@@ -931,10 +1072,10 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           if strcmp(laser_man, 'keopsys') then begin
             eff=DWEL_eff_oz(wavelength,rg, par=(*pb_stats).eff_par)
           endif
-
+          
           temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*d_out/(eff*(*pb_stats).DWEL_cal)
           if ((n_elements(temp) ne n_elements(d_out)) or $
-              (n_elements(temp) ne n_elements(rg))) then begin
+            (n_elements(temp) ne n_elements(rg))) then begin
             print,'Bad error! temp and d_out do NOT conform!'
             print,'number of elements in temp=',n_elements(temp)
             print,'number of elements in d_out=',n_elements(d_out)
@@ -945,23 +1086,23 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           temp=(*pb_stats).s_Factor*(rg^(*pb_stats).rpow)*intensity/(eff*(*pb_stats).DWEL_cal)
           intensity = temp
           temp = 0b
-
+          
           if strcmp(laser_man, 'manlight') then begin
             eff=DWEL_eff_nsf(wavelength,(*pb_stats).range, par=(*pb_stats).eff_par)
           endif
           if strcmp(laser_man, 'keopsys') then begin
             eff=DWEL_eff_oz(wavelength,(*pb_stats).range, par=(*pb_stats).eff_par)
           endif
-
+          
           rvalid = where((*pb_stats).range gt rmax, nvalid)
           temp = fltarr(size(inline[j,*], /n_elements))
           if nvalid gt 0 then begin
             tmprange = (*pb_stats).range
             temp[rvalid] = $
-            (*pb_stats).s_Factor*tmprange[rvalid]^(*pb_stats).rpow*reform(inline[j, $
+              (*pb_stats).s_Factor*tmprange[rvalid]^(*pb_stats).rpow*reform(inline[j, $
               rvalid])/(eff[rvalid]*(*pb_stats).DWEL_cal)
             inline[j, *] = fix(round(temp*i_scale), type=2)
-          endif 
+          endif
           temp = 0b
           if (ovdebug and saving) then begin
             printf,tempfile,''
@@ -970,8 +1111,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
             buf=strtrim(strjoin(buf,' '),2)
             printf,tempfile,buf
             buf=''
-            flush,tempfile 
-;            printf,tempfile,''
+            flush,tempfile
+            ;            printf,tempfile,''
             printf,tempfile,'d_out'
             buf=strtrim(string(d_out),2)
             buf=strtrim(strjoin(buf,' '),2)
@@ -993,7 +1134,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           v0sum=v0sum+float(d0_out[k])
         endfor
         ;
-        if ((*pb_stats).cal_dat and ((vsum le -0.01) or (vsum ge 2.5))) then begin
+        if ((*pb_stats).cal_dat and ((vsum le -0.01) or (vsum ge 4.0))) then begin
           oi_accum[j,i]=0l
           sum_accum[j,i]=0.0
           range_mean[j,i]=0.0
@@ -1029,7 +1170,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         ; now calculate integral of return pulse of each point and the FWHM
         for k=0,nump_new-1 do begin
           ;; to see if there is another peak in close range within the range
-          ;; extent of integral          
+          ;; extent of integral
           range_left=rg[k]-range_extent*2
           range_right=rg[k]+range_extent*2
           cpind = where(rg gt range_left and rg lt range_right, ncp)
@@ -1047,21 +1188,21 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
               cp_out = interpol(d_out[cpind[icp]]*pulse, in_range, out_range)
               tmpwf[out_range_pos] = tmpwf[out_range_pos] - cp_out
             endfor
-          endif 
+          endif
           range_left=rg[k]-range_extent
           range_right=rg[k]+range_extent
           posext=where(((*pb_stats).range ge range_left) and ((*pb_stats).range le range_right),nposext)
           if nposext gt 0 then begin
             return_fwhm[k] = total(tmpwf[posext])/d_out[k]
-          endif 
-        endfor 
-
+          endif
+        endfor
+        
         ;Now go over the final point cloud model and write out the records to the point cloud file
         for k=0,nump_new-1 do begin
           x=rg[k]*sin(th*!dtor)*sin(ph*!dtor)
           y=rg[k]*sin(th*!dtor)*cos(ph*!dtor)
           z=rg[k]*cos(th*!dtor)+(*pb_meta).DWEL_Height
-          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,return_fwhm[k],format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,f14.3)')
+          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,d0_out[k],format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1092,7 +1233,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         resid[j,i]=0.0
         mean_z[j,i]=0.0
         if ((*pb_meta).zero_hit_option gt 0) then begin
-          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0,format='(3f14.3,f14.4,2i10,2i14,4f14.3,3i10,f14.3)')
+          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1103,15 +1244,18 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       if (save_br) then begin
         B_Mat[j,*]=b
         R_Mat[j,*]=r
+        S_Mat[j,*]=mtemp
+        T_Mat[j,*]=new_sig
       endif
       if (save_pfilt) then begin
         if (nump_new gt 0) then begin
           filtloc=make_array(nbands,type=dt)
+          one=fix(1,type=dt)
           for k=0,nump_new-1 do begin
             range_left=(*pb_stats).range[peaks[k]]-range_extent
             range_right=(*pb_stats).range[peaks[k]]+range_extent
             posext=where(((*pb_stats).range ge range_left) and ((*pb_stats).range le range_right),nposext)
-            if (nposext gt 0) then filtloc[posext]=1
+            if (nposext gt 0) then filtloc[posext]=one
           endfor
           P_Mat[j,*]=reform(inline[j,*])*filtloc
         endif
@@ -1129,13 +1273,18 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       bsm1=0b
       bs2=0b
       bsm2=0b
+      mtemp=0b
     endfor
     inline=0b
     if (save_br) then begin
       writeu,bfile,B_Mat
       writeu,rfile,R_Mat
+      writeu,sfile,S_Mat
+      writeu,ttfile,T_Mat
       B_Mat=0b
       R_Mat=0b
+      S_Mat=0b
+      T_Mat=0b
     endif
     if (save_pfilt) then begin
       writeu,pfile,P_Mat
@@ -1150,16 +1299,18 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   if (save_br) then begin
     free_lun,bfile,/force
     free_lun,rfile,/force
+    free_lun,sfile,/force
+    free_lun,ttfile,/force
     b_descrip='B_image for '+strtrim(descrip,2)
     envi_setup_head,fname=b_file,ns=nsamples,nl=nlines,nb=nbands,$
       xstart=0,ystart=0,$
       data_type=4, interleave=1, $
       descrip=b_descrip, wl=wl, bnames=bnames,/write
-      envi_open_file,b_file,r_fid=fid,/no_interactive_query,/no_realize
-      ;write out the previous header records
-      status=dwel_put_headers(fid,DWEL_headers)
-      envi_file_mng,id=fid,/remove
-;
+    envi_open_file,b_file,r_fid=fid,/no_interactive_query,/no_realize
+    ;write out the previous header records
+    status=dwel_put_headers(fid,DWEL_headers)
+    envi_file_mng,id=fid,/remove
+    ;
     r_descrip='R_image for '+strtrim(descrip,2)
     envi_setup_head,fname=r_file,ns=nsamples,nl=nlines,nb=nbands,$
       xstart=0,ystart=0,$
@@ -1169,7 +1320,28 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     ;write out the previous header records
     status=dwel_put_headers(fid,DWEL_headers)
     envi_file_mng,id=fid,/remove
-;
+  ;
+
+    s_descrip='S_image for '+strtrim(descrip,2)
+    envi_setup_head,fname=s_file,ns=nsamples,nl=nlines,nb=nbands,$
+      xstart=0,ystart=0,$
+      data_type=4, interleave=1, $
+      descrip=s_descrip, wl=wl, bnames=bnames,/write
+    envi_open_file,s_file,r_fid=fid,/no_interactive_query,/no_realize
+    ;write out the previous header records
+    status=dwel_put_headers(fid,DWEL_headers)
+    envi_file_mng,id=fid,/remove
+    ;
+    t_descrip='T_image for '+strtrim(descrip,2)
+    envi_setup_head,fname=t_file,ns=nsamples,nl=nlines,nb=nbands,$
+      xstart=0,ystart=0,$
+      data_type=4, interleave=1, $
+      descrip=t_descrip, wl=wl, bnames=bnames,/write
+    envi_open_file,t_file,r_fid=fid,/no_interactive_query,/no_realize
+    ;write out the previous header records
+    status=dwel_put_headers(fid,DWEL_headers)
+    envi_file_mng,id=fid,/remove
+  ;
   endif
   if (save_pfilt) then begin
     free_lun,pfile,/force
@@ -1178,12 +1350,12 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       xstart=0,ystart=0,$
       data_type=dt, interleave=1, $
       descrip=p_descrip, wl=wl, bnames=bnames,/write
-      envi_open_file,pfilt_file,r_fid=fid,/no_interactive_query,/no_realize
-      ;write out the previous header records
-      status=dwel_put_headers(fid,DWEL_headers)
-      envi_file_mng,id=fid,/remove
-;
-
+    envi_open_file,pfilt_file,r_fid=fid,/no_interactive_query,/no_realize
+    ;write out the previous header records
+    status=dwel_put_headers(fid,DWEL_headers)
+    envi_file_mng,id=fid,/remove
+  ;
+    
   endif
   if (ovdebug) then begin
     if (iprint le 0) then begin
@@ -1201,15 +1373,16 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   ratio_est=sqrt(double(accumn)/double(accumd))
   pos_mask=where((*pb_stats).mask ne 0b,npos)
   tmask=(*pb_stats).mask
+
+  accumintens=accumintens/double(accumnum)
+  accumd0=accumd0/double(accumnum)
+  ratio_test=accumd0/accumintens
   
+  check_ipscal=check_ipscal/float(num_ipscal)
+
   ;get d-stats
-  d_accum = d_accum * i_scale
   image_statistics, d_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-  emin = emin / float(i_scale)
-  emax = emax / float(i_scale)
-  emean = emean / float(i_scale)
-  esdev = esdev / float(i_scale)
-;;  d_accum[pos_mask]=4095.0*(d_accum[pos_mask]-emin)/(emax-emin)
+  ;; d_accum[pos_mask]=4095.0*(d_accum[pos_mask]-emin)/(emax-emin)
   print,'mean corrected intensity=',emean
   
   pb_info=[$
@@ -1222,7 +1395,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get d-stats
   image_statistics,d0_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-;;  d0_accum[pos_mask]=4095.0*(d0_accum[pos_mask]-emin)/(emax-emin)
+  d0_accum[pos_mask]=4095.0*(d0_accum[pos_mask]-emin)/(emax-emin)
   print,'mean corrected uncalibrated intensity=',emean
   
   pb_info=[pb_info,$
@@ -1234,7 +1407,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get I stats
   image_statistics,sum_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-;;  sum_accum[pos_mask]=4095.0*(sum_accum[pos_mask]-emin)/(emax-emin)
+  sum_accum[pos_mask]=4095.0*(sum_accum[pos_mask]-emin)/(emax-emin)
   print,'mean I sum=',emean
   
   pb_info=[pb_info,$
@@ -1246,7 +1419,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get I2 stats
   image_statistics,i2_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-;;  i2_accum[pos_mask]=4095.0*(i2_accum[pos_mask]-emin)/(emax-emin)
+  i2_accum[pos_mask]=4095.0*(i2_accum[pos_mask]-emin)/(emax-emin)
   print,'mean I2 sum=',emean
   
   pb_info=[pb_info,$
@@ -1269,7 +1442,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     
   ;get residual stats
   image_statistics,resid,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-;;  resid[pos_mask]=4095.0*(resid[pos_mask]-emin)/(emax-emin)
+  resid[pos_mask]=4095.0*(resid[pos_mask]-emin)/(emax-emin)
   print,'mean Residual=',emean
   
   pb_info=[pb_info,$
@@ -1327,28 +1500,30 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   (*pb_meta).Min_Intensity=Min_Intensity
   (*pb_meta).Max_Intensity=Max_Intensity
   
-  printf,mfile,'Zero_Hit_Number='+strtrim(string((*pb_meta).Zero_Hit_Number,format='(i10)'),2)
-  printf,mfile,'Shot_Hit_Number='+strtrim(string((*pb_meta).Shot_Hit_Number,format='(i10)'),2)
-  printf,mfile,'Total_Hit_Number='+strtrim(string((*pb_meta).Total_Hit_Number,format='(i10)'),2)
-  printf,mfile,'Nrecs='+strtrim(string((*pb_meta).Nrecs,format='(i10)'),2)
-  printf,mfile,'Max_X='+strtrim(string((*pb_meta).Max_X,format='(f10.3)'),2)
-  printf,mfile,'Min_X='+strtrim(string((*pb_meta).Min_X,format='(f10.3)'),2)
-  printf,mfile,'Max_Y='+strtrim(string((*pb_meta).Max_Y,format='(f10.3)'),2)
-  printf,mfile,'Min_Y='+strtrim(string((*pb_meta).Min_Y,format='(f10.3)'),2)
-  printf,mfile,'Max_Z='+strtrim(string((*pb_meta).Max_Z,format='(f10.3)'),2)
-  printf,mfile,'Min_Z='+strtrim(string((*pb_meta).Min_Z,format='(f10.3)'),2)
-  printf,mfile,'Max_Intensity='+strtrim(string((*pb_meta).Max_Intensity,format='(f10.3)'),2)
-  printf,mfile,'Min_Intensity='+strtrim(string((*pb_meta).Min_Intensity,format='(f10.3)'),2)
+  printf,mfile,'Zero_Hit_Number='+strtrim(string((*pb_meta).Zero_Hit_Number,format='(i14)'),2)
+  printf,mfile,'Shot_Hit_Number='+strtrim(string((*pb_meta).Shot_Hit_Number,format='(i14)'),2)
+  printf,mfile,'Total_Hit_Number='+strtrim(string((*pb_meta).Total_Hit_Number,format='(i14)'),2)
+  printf,mfile,'Nrecs='+strtrim(string((*pb_meta).Nrecs,format='(i14)'),2)
+  printf,mfile,'Max_X='+strtrim(string((*pb_meta).Max_X,format='(f14.3)'),2)
+  printf,mfile,'Min_X='+strtrim(string((*pb_meta).Min_X,format='(f14.3)'),2)
+  printf,mfile,'Max_Y='+strtrim(string((*pb_meta).Max_Y,format='(f14.3)'),2)
+  printf,mfile,'Min_Y='+strtrim(string((*pb_meta).Min_Y,format='(f14.3)'),2)
+  printf,mfile,'Max_Z='+strtrim(string((*pb_meta).Max_Z,format='(f14.3)'),2)
+  printf,mfile,'Min_Z='+strtrim(string((*pb_meta).Min_Z,format='(f14.3)'),2)
+  printf,mfile,'Max_Intensity='+strtrim(string((*pb_meta).Max_Intensity,format='(f14.3)'),2)
+  printf,mfile,'Min_Intensity='+strtrim(string((*pb_meta).Min_Intensity,format='(f14.3)'),2)
   
   flush,mfile
   
   perc_hit=(100.0*float((*pb_meta).Shot_Hit_Number)/float((*pb_meta).Total_Hit_Number))
-
+  
   pb_info=[pb_info,$
-    'Rmax='+strtrim(string(rmax,format='(f10.3)'),2),$
-    'Percent_hits='+strtrim(string(perc_hit,format='(f10.3)'),2),$
-    'Theory_Ratio='+strtrim(string(ratio_th,format='(f10.4)'),2),$
-    'Estimated_Ratio='+strtrim(string(ratio_est,format='(f10.4)'),2) $
+    'Rmax='+strtrim(string(rmax,format='(f14.3)'),2),$
+    'Percent_hits='+strtrim(string(perc_hit,format='(f14.3)'),2),$
+    'Check_ipscal='+strtrim(string(check_ipscal,format='(f14.4)'),2),$
+    'Theory_Ratio='+strtrim(string(ratio_th,format='(f14.4)'),2),$
+    'Estimated_Ratio='+strtrim(string(ratio_est,format='(f14.4)'),2),$
+    'Test_Ratio='+strtrim(string(ratio_test,format='(f14.4)'),2) $
     ]
     
   print,'Point Cloud Case Finished - clean up'
@@ -1361,6 +1536,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   free_lun,tempfile,/force
   free_lun,bfile,/force
   free_lun,rfile,/force
+  free_lun,sfile,/force
+  free_lun,ttfile,/force
   free_lun,inlun,/force
   free_lun,pfile,/force
   free_lun,ppfile,/force
@@ -1372,76 +1549,76 @@ end
 
 ;======================================================================
 pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
-;+
-;PURPOSE:
-;; Generate point cloud from DWEL data cube, either projected or unprojected
-;; after 1) baseline and saturation fix, 2) pulse correlation and 3) post
-;; baseline fix and laser power correction. 
-;;
-;INPUTS:
-;; infile = string, full file name of the input data cube of waveforms. 
-;;
-;; ancfile = string, full file name of the ancillary data.
-;;
-;; outfile = string, full file name of the output file/s, given this name, five
-;; files will be generated as a whole output package, 
-;; 1. outfile_points.txt, point cloud file
-;; 2. outfile_pulse.txt, file of pulse models used in point cloud generation. 
-;; 3. outfile_metadata.txt, meta data for the point cloud generation. 
-;; 4. outfile_pcinfo.txt, multi-layer image of AT projection of point cloud. 
-;; 5. outfile_pfilter.img, a synthesized clean waveform from extracted points.
-;;
-;OUTPUTS:
-;; err = integer, return error code of program running. 
-;;
-;KEYWORDS:
-;; Settings = structure, provide user-defined settings for point cloud
-;; generation rather than using the default settings. Current available
-;; settings (tag name of settings), 
-;; 'runcode': integer, set to a value to distinguish runs, default: the current
-;; Julian day*10.  
-;; 'add_dwel': byte, if 1, two points (0, 0, 0) and (0, 0, dwel_height) are
-;; recorded in generated point cloud for reference. Default: 0. 
-;; 'save_br': byte, if 1, save images of b and r. they are really really large
-;; bc they are image of doulbe floating values. Only save them when
-;; debugging. Default: 0. 
-;; 'save_pfilt': byte, if 1, save pfilter image. Default: 1. 
-;; 'zlow', 'zhigh', 'xmin', 'xmax', 'ymin', 'ymax': float, set a bounding box of
-;; limits for impossible or unnecessary points useful to remove impossible
-;; points. Default: -5, 50, -50, 50, -50, 50. 
-;; 'sdevfac': float, how many times of standard deviation of noise to determine
-;; a threshold to find peak candidates if above this threshold. Default: 2.
-;; 'r_thresh':, float, threshold to remove noise according to normalized cross
-;; correlation. Default: 0.175.
-;; 'sievefac': float, how many times of standard deviation of noise to determine
-;; a threshold to filter out extracted noise peaks. Default, 10.0.
-;; 'cal_par': array[6], a vector of calibration parameters, 
-;; [c0, c1, c2, c3, c4, b]. Default: use default values in the program. x 
-;;
-;RETURN:
-;; None. 
-;;
-;-
-;
+  ;+
+  ;PURPOSE:
+  ;; Generate point cloud from DWEL data cube, either projected or unprojected
+  ;; after 1) baseline and saturation fix, 2) pulse correlation and 3) post
+  ;; baseline fix and laser power correction.
+  ;;
+  ;INPUTS:
+  ;; infile = string, full file name of the input data cube of waveforms.
+  ;;
+  ;; ancfile = string, full file name of the ancillary data.
+  ;;
+  ;; outfile = string, full file name of the output file/s, given this name, five
+  ;; files will be generated as a whole output package,
+  ;; 1. outfile_points.txt, point cloud file
+  ;; 2. outfile_pulse.txt, file of pulse models used in point cloud generation.
+  ;; 3. outfile_metadata.txt, meta data for the point cloud generation.
+  ;; 4. outfile_pcinfo.txt, multi-layer image of AT projection of point cloud.
+  ;; 5. outfile_pfilter.img, a synthesized clean waveform from extracted points.
+  ;;
+  ;OUTPUTS:
+  ;; err = integer, return error code of program running.
+  ;;
+  ;KEYWORDS:
+  ;; Settings = structure, provide user-defined settings for point cloud
+  ;; generation rather than using the default settings. Current available
+  ;; settings (tag name of settings),
+  ;; 'runcode': integer, set to a value to distinguish runs, default: the current
+  ;; Julian day*10.
+  ;; 'add_dwel': byte, if 1, two points (0, 0, 0) and (0, 0, dwel_height) are
+  ;; recorded in generated point cloud for reference. Default: 0.
+  ;; 'save_br': byte, if 1, save images of b and r. they are really really large
+  ;; bc they are image of doulbe floating values. Only save them when
+  ;; debugging. Default: 0.
+  ;; 'save_pfilt': byte, if 1, save pfilter image. Default: 1.
+  ;; 'zlow', 'zhigh', 'xmin', 'xmax', 'ymin', 'ymax': float, set a bounding box of
+  ;; limits for impossible or unnecessary points useful to remove impossible
+  ;; points. Default: -5, 50, -50, 50, -50, 50.
+  ;; 'sdevfac': float, how many times of standard deviation of noise to determine
+  ;; a threshold to find peak candidates if above this threshold. Default: 2.
+  ;; 'r_thresh':, float, threshold to remove noise according to normalized cross
+  ;; correlation. Default: 0.175.
+  ;; 'sievefac': float, how many times of standard deviation of noise to determine
+  ;; a threshold to filter out extracted noise peaks. Default, 10.0.
+  ;; 'cal_par': array[6], a vector of calibration parameters,
+  ;; [c0, c1, c2, c3, c4, b]. Default: use default values in the program. x
+  ;;
+  ;RETURN:
+  ;; None.
+  ;;
+  ;-
+  ;
 
   compile_opt idl2
-;  envi, /restore_base_save_files
-;  envi_batch_init, /no_status_window
-
+  ;  envi, /restore_base_save_files
+  ;  envi_batch_init, /no_status_window
+  
   resolve_routine, 'DWEL_GET_HEADERS', /compile_full_file, /either
   resolve_routine, 'DWEL_ITPULSE_MODEL_DUAL_NSF', /compile_full_file, /either
   resolve_routine, 'DWEL_ITPULSE_MODEL_DUAL_OZ', /compile_full_file, /either
   resolve_routine, 'DT2NB', /compile_full_file, /either
   resolve_routine, 'DWEL_PUT_HEADERS', /compile_full_file, /either
   resolve_routine, 'CMREPLICATE', /compile_full_file, /either
-
+  
   ;; get the size of input file to be processed. It will be used in later
-  ;; summary of processing time. 
+  ;; summary of processing time.
   procfilesize = file_info(infile)
   procfilesize = procfilesize.size
   ;; get the time now as the start of processing
   starttime = systime(1)
-
+  
   ; infile is the dwel file of data
   ; ancfile is its ancillary
   ; cal_dat=0 no calibration =1 carry out calibration
@@ -1454,7 +1631,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   dwel_pointcloud_info=['']
   
   ;; set up a structure to store default settings and will be updated
-  ;; accordingly later. 
+  ;; accordingly later.
   ;; runcode: set to a value to distinguish runs, be default it is set to the
   ;; current Julian day*10.
   ;; add_dwel: if 1, two points (0, 0, 0) and (0, 0, dwel_height) are recorded
@@ -1489,22 +1666,22 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   setting_tag_names = tag_names(finalsettings)
   if n_elements(settings) ne 0 or arg_present(settings) then begin
     ;; user supplied settings
-    ;; go through user supplied settings and update the final settings. 
+    ;; go through user supplied settings and update the final settings.
     numtags = n_tags(settings)
     tags = tag_names(settings)
     for n=0, numtags-1 do begin
       tmpind = where(strmatch(setting_tag_names, tags[n], /fold_case) eq 1, $
-        tmpnum) 
+        tmpnum)
       if tmpnum eq 1 then begin
         finalsettings.(tmpind) = settings.(n)
       endif else begin
         print, 'Tag name is invalid or ambiguous in given ' + $
           'settings. Default value will be used instead. '
         print, 'Given tag name = ' + strtrim(tags[n], 2)
-      endelse 
-    endfor 
-  endif 
-
+      endelse
+    endfor
+  endif
+  
   cal_dat=finalsettings.cal_dat
   DWEL_az_n=finalsettings.DWEL_az_n
   runcode=finalsettings.runcode
@@ -1645,7 +1822,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     endif else begin
       max_zen_ang=118.0
     endelse
-
+    
     match = -1
     for i=0,n_elements(DWEL_headers.DWEL_projection_info)-1 do begin
       if (strmatch(DWEL_headers.DWEL_projection_info[i],'*num_val_Stats*')) then match=i
@@ -1658,11 +1835,15 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     endif else begin
       mean_num_val = 1
     endelse
-  endif
+  endif else begin
+    max_zen_ang = 118.0
+    mean_num_val = 1.0
+  endelse 
+  sample_fac = sqrt(float(mean_num_val))
   
-  print,'max_zen_ang='+strtrim(string(max_zen_ang),2) 
+  print,'max_zen_ang='+strtrim(string(max_zen_ang),2)
   print, 'mean_num_val=', mean_num_val
- 
+  
   ; Check if file is apparent reflectance
   if (DWEL_headers.apprefl_present) then begin
     app_refl=1b
@@ -1697,7 +1878,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   endelse
   
   print,'Laser manufacturer = '+strtrim(laser_man)
-
+  
   info=DWEL_headers.dwel_adaptation
   
   wavelength=1548
@@ -1721,24 +1902,24 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   endelse
   
   print,'wavelength='+strtrim(string(wavelength),2)
-
+  
   match = -1
-  ; get the wire flag 
+  ; get the wire flag
   base_info = DWEL_headers.DWEL_base_fix_info
   for i=0,n_elements(base_info)-1 do begin
     if (strmatch(base_info[i], '*Wire_Flag*', /fold_case)) then match=i
-  endfor 
+  endfor
   if match ge 0 then begin
     text=strtrim(base_info[match],2)
     k=strpos(text,'=')
     wire_flag=fix(strtrim(strmid(text,k+1),2))
   endif else begin
     wire_flag = 0
-  endelse 
-
+  endelse
+  
   ;; find the casing type for laser power variation monitoring from early
-  ;; basefix 
-  ;; default casing type is dewired or no-wire returns from lambertian panel. 
+  ;; basefix
+  ;; default casing type is dewired or no-wire returns from lambertian panel.
   casing_type = 'LAM'
   match = -1
   for i=0,n_elements(base_info)-1 do if (strmatch(base_info[i],'*Casing_Type*',/fold_case)) then match=i
@@ -1760,7 +1941,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     ;; correct one. use the default calibration paramters
     if (wavelength eq 1064) then begin
       if strcmp(laser_man, 'manlight', /fold_case) then begin
-        if wire_flag then begin 
+        if wire_flag then begin
           ;; calibration parameters for scans with wire, but wire removed
           ;; NSF DWEL, for scaled intensity
           ;; estimated from stationary panel scans with wire
@@ -1768,25 +1949,25 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
           ;; 2.305 is the nominal scale factor by onboard lambertian target
           ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
           ;; 1300 is the laser power setting of calibration scans.
-          dwel_cal = 5863.906d0*0.984807753*5.727
+          dwel_cal = 5863.906d0*0.984807753*6.583
           rpow = 1.402d0 ;; NSF DWEL
           eff_par = [3413.743d0, 0.895d0, 15.640d0, 3413.743d0]
         endif else begin
           ;; no-wire, same with wire-removed
-          dwel_cal = 5863.906d0*0.984807753*5.727
+          dwel_cal = 5863.906d0*0.984807753*6.583
           rpow = 1.402d0 ;; NSF DWEL
           eff_par = [3413.743d0, 0.895d0, 15.640d0, 3413.743d0]
-        endelse 
-      endif 
+        endelse
+      endif
       if strcmp(laser_man, 'keopsys', /fold_case) then begin
         ;; from David, on 20141220
         dwel_cal = 2052936.432d0
         rpow = 1.9056d0
         eff_par = [6580.330d0, 0.3553d0, 43.396d0, 6580.330d0]
-      endif 
+      endif
     endif else begin
       if strcmp(laser_man, 'manlight', /fold_case) then begin
-        if wire_flag then begin 
+        if wire_flag then begin
           ;; calibration parameters for scans with wire, but wire removed
           ;; NSF DWEL, for scaled intensity
           ;; estimated from stationary panel scans with wire
@@ -1794,30 +1975,30 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
           ;; 2.305 is the nominal scale factor by onboard lambertian target
           ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
           ;; 1300 is the laser power setting of calibration scans.
-          dwel_cal = 20543.960d0*0.984807753*5.103
+          dwel_cal = 20543.960d0*0.984807753*5.064
           rpow = 1.566d0 ;; NSF DWEL
           eff_par = [5.133d0, 0.646d0, 1.114d0, 5.133d0]
         endif else begin
           ;; no-wire, same with wire-removed
-          dwel_cal = 20543.960d0*0.984807753*5.103
+          dwel_cal = 20543.960d0*0.984807753*5.064
           rpow = 1.566d0 ;; NSF DWEL
           eff_par = [5.133d0, 0.646d0, 1.114d0, 5.133d0]
-        endelse 
-      endif 
+        endelse
+      endif
       if strcmp(laser_man, 'keopsys', /fold_case) then begin
         ;; from David, on 20141220
         dwel_cal = 712237.602d0
         rpow = 1.9056d0
         eff_par = [4483.089d0, 0.7317d0, 19.263d0, 4483.089d0]
-      endif 
+      endif
     endelse
   endif else begin
-    ;; user has provided a valid calibration parameter set. 
+    ;; user has provided a valid calibration parameter set.
     dwel_cal = cal_par[0]
     rpow = cal_par[5]
     eff_par = cal_par[1:4]
-  endelse 
-    
+  endelse
+  
   ;set up the calibration as far as possible
   if (cal_dat) then begin
     s_Factor=1.0
@@ -1826,18 +2007,18 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     s_Factor=1.0
     i_scale=1.0
   endelse
-
+  
   print, 'DWEL calibration Const='+strtrim(string(dwel_cal,format='(f14.3)'),2)
   print, 'DWEL calibration range power='+strtrim(string(rpow,format='(f14.3)'),2)
   print, 'DWEL K(r) model='+strtrim(string(eff_par,format='(f14.3)'),2)
-
+  
   DWEL_pointcloud_info=[DWEL_pointcloud_info,$
     'DWEL beam wavelength='+strtrim(string(wavelength,format='(i14)'),2),$
     'DWEL beam divergence='+strtrim(string(DWEL_div,format='(f14.3)'),2),$
     'DWEL calibration Const='+strtrim(string(dwel_cal,format='(f14.3)'),2),$
     'DWEL calibration range power='+strtrim(string(rpow,format='(f14.3)'),2) $
     ]
-  
+    
   mask=bytarr(nsamples,nlines)
   zenith=fltarr(nsamples,nlines)
   azimuth=fltarr(nsamples,nlines)
@@ -1860,7 +2041,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   dwel_itpulse_model_dual_nsf, wavelength, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
   if strcmp(laser_man, 'keopsys', /fold_case) then begin
     dwel_itpulse_model_dual_oz, wavelength, i_val, t_val, r_val, p_range, p_time, pulse, t_fwhm, r_fwhm
-  endif 
+  endif
   
   ;S0 is a scale factor that relates the FWHM of the standard pulse and the mean FWHM of the data
   ;it has been chosen to be best for data in between ND015 (maybe 30% saturated) and ND100 (no saturated)
@@ -1875,6 +2056,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   print,'h2='+strtrim(string(h2),2)
   
   DWEL_pointcloud_info=[DWEL_pointcloud_info,$
+    'Cal_Dat='+strtrim(string(cal_dat,format='(i10)'),2),$
     'S0='+strtrim(string(s0,format='(f12.4)'),2) $
     ]
     
@@ -1923,7 +2105,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   endelse
   
   ;; now read in the right threshold from standard deviation of background noise
-  ;; base! 
+  ;; base!
   fac=1.0
   if (DWEL_headers.filtfix_present) then begin
     match = -1
@@ -1944,23 +2126,26 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
       scale_mean = float(strtrim(sf[1],2))
       print,'scale mean from headers='+strtrim(string(scale_mean),2)
     endif
-  endif
+  endif else scale_mean=1.0
   
   ;; read the average number of averaged shots in a projected bin
-
+  
   ;; b_thresh=sdevfac*threshold
   ;; Because we have scaled waveforms in the filtered_fixbase processing
   ;; procedure, the standard deviation of background base level needs to be
   ;; scaled accordingly to reflect correct noise level and derive appropriate
   ;; threshold here.
-  b_thresh=sdevfac*(scale_mean*threshold/sqrt(mean_num_val))
+  threshold=threshold*scale_mean*sample_fac
+  b_thresh=sdevfac*threshold
+  sieve_thresh = sievefac*threshold
 
-  sieve_thresh = sievefac*(scale_mean*threshold/sqrt(mean_num_val))
-  
+  print,'threshold='+strtrim(string(threshold),2)
+  print,'scale_mean='+strtrim(string(scale_mean),2)
+  print,'sample_fac='+strtrim(string(sample_fac),2)
   print,'b_thresh='+strtrim(string(b_thresh),2)
-  print, 'r_thresh=' + strtrim(string(r_thresh), 2)
   print, 'sieve_thresh=' + strtrim(string(sieve_thresh), 2)
-  
+  print, 'r_thresh=' + strtrim(string(r_thresh), 2)
+
   azimuth=azimuth-DWEL_az_n
   pos=where(azimuth lt 0.0,npos)
   if (npos gt 0) then azimuth[pos]=azimuth[pos]+360.0
@@ -1976,8 +2161,10 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   
   DWEL_pointcloud_info=[DWEL_pointcloud_info,$
     'DWEL_az_n='+strtrim(string(DWEL_az_n),2),$
+    'Threshold='+strtrim(string(threshold),2),$
     'B_Thresh='+strtrim(string(b_thresh),2), $
-    'Sieve_Thresh='+strtrim(string(sieve_thresh),2) $
+    'Sieve_Thresh='+strtrim(string(sieve_thresh),2), $
+    'R_Thresh='+strtrim(string(r_thresh),2) $
     ]
     
   ; ***********************
@@ -2219,7 +2406,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   free_lun,tfile,/force
   
   heap_gc,/verbose
-
+  
   ;; write processing time summary
   print, '*****************************************'
   print, 'Processing program = dwel_get_point_cloud'

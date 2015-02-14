@@ -183,7 +183,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   endif
   
   envi_file_query, infile_fid, ns=ns, nl=nl, nb=nb, wl=wl, $
-    xstart=xstart, ystart=ystart, data_type=type, $
+    xstart=xstart, ystart=ystart, data_type=dtype, $
     interleave=ftype, fname=fname, dims=dims
     
   x_range=[dims[1],dims[2]]
@@ -198,7 +198,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   endcase
   
   ;set number of bytes in input file data
-  nbytes=dt2nb(type)
+  nbytes=dt2nb(dtype)
   
   ;get path and DWEL_file name as separate strings
   f_base=file_basename(fname)
@@ -213,9 +213,9 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   ;    ancillaryfile_name=strmid(fname,0,n_dot)+'_ancillary.img'
   ;  endelse
   
-  if(~file_test(ancillaryfile_name)) then begin
+  if(~file_test(ancillaryfile_name, /read)) then begin
     message_text=[ $
-      'Ancillary file is not present',$
+      'Ancillary file is not present or cannot be read',$
       'Expected Name='+strtrim(ancillaryfile_name,2)$
       ]
     print, message_text
@@ -271,7 +271,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   
   ;help,dwel_headers,/structures
   
-  if ((DWEL_headers.headers_present le) 0s or (~DWEL_headers.run_present)) then begin
+  if ((DWEL_headers.headers_present le 0s) or (~DWEL_headers.run_present)) then begin
     print,strtrim('Input file is NOT a valid DWEL Cube file!',2)
     print,'Input File: '+strtrim(DWELCubeFile,2)
     envi_file_mng,id=infile_fid,/remove
@@ -568,7 +568,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
     if (count gt 0L) then begin
       ;      data = envi_get_slice(fid=infile_fid, line=i, /bil)
       pointsz=long64(i)*long64(bufrs)
-      data=read_binary(inlun,data_start=pointsz,data_dims=[ns,nb],data_type=type)
+      data=read_binary(inlun,data_start=pointsz,data_dims=[ns,nb],data_type=dtype)
       maxtemp = max(data, dimension=2)
       sat_pos = where(maxtemp ge sat_test, count_sat)
       if (count_sat gt 0) then begin
@@ -989,7 +989,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
       if (count gt 0L) then begin
         ;
         pointsz=long64(i)*long64(bufrs)
-        data=read_binary(inlun,data_start=pointsz,data_dims=[ns,nb],data_type=type)
+        data=read_binary(inlun,data_start=pointsz,data_dims=[ns,nb],data_type=dtype)
         ;      data=float(reform(data[*,posw]))
         maxtemp = max(data, dimension=2)
         sat_pos = where(maxtemp ge sat_test, count_sat)
@@ -1489,7 +1489,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
     ;first get the data tile
     ;    data=envi_get_tile(tile_id,i)
     ;    data=envi_get_slice(fid=infile_fid, line=i, /bil)
-    data=read_binary(inlun,data_start=pointsz,data_dims=[ns_out,nb_out],data_type=type)
+    data=read_binary(inlun,data_start=pointsz,data_dims=[ns_out,nb_out],data_type=dtype)
     pointsz=long64(pointsz)+long64(bufrs)
     temp=float(data)
     ;==================================================================
@@ -1502,7 +1502,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
     if (count_sat gt 0) then begin
       for kk=0,count_sat-1 do begin
         pover=where(temp[sat_pos[kk],*] ge sat_test,num_over)
-        if (num_over gt 20) then begin
+        if ((num_over gt 30) and ((pover[num_over-1]-pover[0]) gt 161)) then begin
           temp[sat_pos[kk],*]=0.0
           mask_all[sat_pos[kk],i]=0
           alltotbad=long(alltotbad)+1L
@@ -1595,14 +1595,14 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
     
     ;======================================================================
     ;round if integer else set back in data
-    if (type lt 4 or type gt 9) then begin
-      temp=fix(round(temp), type=2)
-    endif
+    sat_mean_image[*,i]=fln*total(temp[*,pos_pos],2)
+    sat_max_image[*,i]=float(max(temp[*,pos_pos],DIMENSION=2))
+
+    ;set to input data type
+    temp=fix(round(temp),type=dtype)
     
     ;write out the resulting tile
     writeu,osatfile,temp
-    sat_mean_image[*,i]=fln*total(temp[*,pos_pos],2)
-    sat_max_image[*,i]=float(max(temp[*,pos_pos],DIMENSION=2))
     ;==================================================================
     
     data=0
@@ -1616,12 +1616,8 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   print,'number saturated=',totsat
   print,'number of bad=',alltotbad
   ;set the output data type
-  if (type lt 4 or type gt 9) then begin
-    out_type=2
-  endif else begin
-    out_type=4
-  endelse
-  
+  out_type = dtype
+
   ;clear up and complete the action
   ;
   data=0b
@@ -1664,7 +1660,7 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   band_names=band_names+strtrim(string(indgen(nb_out)+1),2)+'_satfix'
   
   envi_setup_head,fname=out_satfix_name,ns=ns_out,nl=nl_out,nb=nb_out,$
-    xstart=xstart+dims[1],ystart=ystart+dims[3],$
+    xstart=0,ystart=0,$
     data_type=out_type, interleave=ft_out, $
     wl=wl_range, inherit=inherit, $
     bnames=band_names,descrip=descrip, $
@@ -1733,12 +1729,14 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   anc_data=0b
   sat_mean_image=0b
   
+  descrip='Ancillary files for DWEL base fix and Sat Fix applied to '+strtrim(out_base,2)
+  anc_bnames=['Sat Mask','Sun Mask','Scan Encoder','Rotary Encoder', $
+    'Laser Power','Waveform Mean','Mask','Zenith','Azimuth']
   ENVI_SETUP_HEAD, fname=ancfile, $
     ns=ns_out, nl=nl_out, nb=9, $
     interleave=0, data_type=3, $
-    /write, $
-    bnames=['Sat Mask','Sun Mask','Scan Encoder','Rotary Encoder', $
-    'Laser Power','Waveform Mean','Mask','Zenith','Azimuth']
+    xstart=0,ystart=0,$
+    descrip=descrip,bnames=anc_bnames,/write
     
   envi_open_file,ancfile,r_fid=anc_fid,/no_interactive_query,/no_realize
   
