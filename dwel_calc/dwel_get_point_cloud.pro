@@ -250,6 +250,9 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   printf,mfile,'b_thresh='+strtrim(string((*pb_meta).b_thresh,format='(f14.4)'),2)
   printf,mfile,'sieve_thresh='+strtrim(string((*pb_meta).sieve_thresh,format='(f14.4)'),2)
   printf,mfile,'r_thresh='+strtrim(string((*pb_meta).r_thresh,format='(f14.4)'),2)
+  printf,mfile,'s_thresh='+strtrim(string(s_thresh,format='(f14.4)'),2)
+  printf,mfile,'skewthresh='+strtrim(string(skewthresh,format='(f14.4)'),2)
+  printf,mfile,'cvthresh='+strtrim(string(cvthresh,format='(f14.4)'),2)
   printf,mfile,'Fneg='+strtrim(string((*pb_meta).Fneg,format='(f14.4)'),2)
   printf,mfile,'h1='+strtrim(string((*pb_meta).h1,format='(i14)'),2)
   printf,mfile,'h2='+strtrim(string((*pb_meta).h2,format='(i14)'),2)
@@ -1271,7 +1274,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           if (z lt min_z) then min_z=z
         endfor
 
-        if (savebr) then begin
+        if (save_br) then begin
           ;; write brst of extracted points to a point cloud file for finding the
           ;; righ threshold
           for k=0,nump_new-1 do begin
