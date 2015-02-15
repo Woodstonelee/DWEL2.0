@@ -59,12 +59,16 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   cvthresh=0.01
   skewthresh=1.0
-  
+  ;; new code to control threshold of local RMS.
+  localrmsfac = 1.0
+  s_thresh = localrmsfac*threshold
+
   print,'b_thresh='+strtrim(string(b_thresh),2)
   print, 'r_thresh=' + strtrim(string(r_thresh), 2)
   print, 'sieve_thresh=' + strtrim(string(sieve_thresh), 2)
   print, 'cvthresh=' + strtrim(string(cvthresh), 2)
   print, 'skewthresh=' + strtrim(string(skewthresh), 2)
+  print, 's_thresh=' + strtrim(string(s_thresh), 2)
   
   ;;  cvthresh=threshold/512.0
   
@@ -104,9 +108,15 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   if((n_dot le 0) or (n_base-n_dot ne 4)) then begin
     point_file=strtrim(point_file,2)+'_points.txt'
     mdata_file=strtrim(point_file,2)+'_metadata.txt'
+    if (save_br) then begin
+      pointbr_file=strtrim(point_file,2)+'_brst.txt'
+    endif 
   endif else begin
     point_file=strtrim(strmid(point_file,0,n_dot),2)+'_points.txt'
     mdata_file=strtrim(strmid(point_file,0,n_dot),2)+'_metadata.txt'
+    if (save_br) then begin
+      pointbr_file=strtrim(strmid(point_file,0,n_dot),2)+'_brst.txt'
+    endif 
   endelse
   
   ;see if the points file exists & remove if it does!
@@ -177,6 +187,43 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     error=3
     goto, cleanup
   endif
+
+  ;; see if old point brst file exists and remove if it does
+  if (save_br) then begin
+    if(file_test(pointbr_file)) then begin
+      fids=envi_get_file_ids()
+      if(fids[0] eq -1) then begin
+        file_delete, pointbr_file,/quiet
+        print,'old point brst file deleted'
+      endif else begin
+        for i=0,n_elements(fids)-1 do begin
+          envi_file_query,fids[i],fname=tname
+          if (strtrim(strlowcase(pointbr_file),2) eq $
+            strtrim(strlowcase(tname),2)) then begin
+            envi_file_mng,id=fids[i],/remove
+            print,'old point brst file removed from ENVI'
+          endif
+        endfor
+        file_delete, pointbr_file,/quiet
+        print,'old point brst file deleted'
+      endelse
+    endif
+    text_err=0
+    openw, pbrfile, pointbr_file,/get_lun,error=text_err
+    if (text_err ne 0) then begin
+      print,'Error opening point brst file in point cloud!!'
+      print,'File Name =',strtrim(pointbr_file,2)
+      print,'text_err=',text_err
+      print,'Error Type =',strtrim(string(!ERROR_STATE.MSG),2)
+      print,'Sys_Error Type =',strtrim(string(!ERROR_STATE.SYS_MSG),2)
+      error=3
+      goto, cleanup
+    endif
+    printf,pbrfile,strtrim('[DWEL Point Cloud Debugging Data]',2)
+    printf,pbrfile,strtrim('Run made at: '+time_date,2)
+    printf,pbrfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,range,Sample,Line,Band,d0,b,r,local_rms,local_skewness',2)
+    flush,pbrfile
+  endif 
   
   (*pb_meta).Processing_Date_Time=time_date
   
@@ -360,6 +407,13 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   h2=i_val[4]-i_val[2]
   
   print,'new h1,h2='+'['+strtrim(string(h1),2)+','+strtrim(string(h2),2)+']'
+
+  ;; new code to suppress noise peaks from side lobes of big returns
+  save_trough_thresh = (cross2[i_val[2]] + cross2[i_val[3]]) $
+    / (abs(cross2[i_val[3]])-cross2[i_val[4]])
+  new_scdpeak = cross2[i_val[4]]/cross2[i_val[2]]
+  ;; partial end of new code
+
   ;save the pulse information
   ord=(findgen(num_pad)-float(max_point))*h
   min_ord=min(ord)
@@ -786,7 +840,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       ;; test2=abs(bsm1) le b_thresh
       ;; w = where((test and test1 and test2), nw, compl=fok, ncompl=nfok)
 
-      w = where(((mtemp le b_thresh) or (new_sig lt skewthresh)), nw, compl=fok, ncompl=nfok)
+      w = where(((mtemp le s_thresh) or (new_sig lt skewthresh)), nw, compl=fok, ncompl=nfok)
       if (nw gt 0) then begin
         r[w] = 0.0
         dr[w]=0.0
@@ -1216,10 +1270,28 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           if (z gt max_z) then max_z=z
           if (z lt min_z) then min_z=z
         endfor
+
+        if (savebr) then begin
+          ;; write brst of extracted points to a point cloud file for finding the
+          ;; righ threshold
+          for k=0,nump_new-1 do begin
+            x=rg[k]*sin(th*!dtor)*sin(ph*!dtor)
+            y=rg[k]*sin(th*!dtor)*cos(ph*!dtor)
+            z=rg[k]*cos(th*!dtor)+(*pb_meta).DWEL_Height
+            buf=string(x,y,z,d_out[k],k+1,nump_new,rg[k],j+1,i+1,peaks[k]+1,d0_out[k],b[peaks[k]],r[peaks[k]],mtemp[peaks[k]],new_sig[peaks[k]], $
+              format='(3f14.3,f14.4,2i14,f14.3,3i14,f14.3,4f14.3)')
+            buf=strtrim(strcompress(buf),2)
+            while (((ii = strpos(buf, ' '))) ne -1) do $
+              strput, buf, ',', ii
+            printf,pbrfile,buf
+          endfor
+        endif 
+
       endif else begin
         ; Otherwise it is a gap
       
         nohits:
+        nump_new = 0b
         Zero_Hit_Number=Zero_Hit_Number+1L
         oi_accum[j,i]=0l
         sum_accum[j,i]=0.0
@@ -1652,14 +1724,14 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     save_br:0, $
     save_pfilt:1, $
     zlow:-5.0, $
-    zhigh:50.0, $
-    xmin:-50.0, $
-    xmax:50.0, $
-    ymin:-50.0, $
-    ymax:50.0, $
+    zhigh:100.0, $
+    xmin:-100.0, $
+    xmax:100.0, $
+    ymin:-100.0, $
+    ymax:100.0, $
     sdevfac:2.0, $
-    r_thresh:0.175, $
-    sievefac:10.0, $
+    r_thresh:0.4, $
+    sievefac:2.0, $
     cal_par:dblarr(6)-1.0 $ ;[c0, c1, c2, c3, c4, b]
     }
   ;; tag names we need in settings
@@ -2223,7 +2295,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;***************
   ;now set up structures and push onto the stack
   
-  meta_data={pbmeta, $
+  meta_data={ $
     Processing_Date_Time:Processing_Date_Time,$
     Run_Number:Run_Number,$
     Description:Description,$
@@ -2313,7 +2385,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     endelse
   endif
   
-  base_stats={pbstats, $
+  base_stats={ $
     infile:infile,$
     outfile:out_file,$
     oi_name:oi_name,$
