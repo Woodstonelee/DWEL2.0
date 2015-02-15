@@ -154,7 +154,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   printf,tfile,strtrim('[DWEL Point Cloud Data]',2)
   printf,tfile,strtrim('Run made at: '+time_date,2)
-  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,d0',2)
+  printf,tfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,Shot_Number,Run_Number,range,theta,phi,rk,Sample,Line,Band,d0,fwhm',2)
   flush,tfile
   
   ;see if the metadata file exists & remove if it does!
@@ -705,12 +705,12 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   ;check if you are going to add the DWEL position records
   ;these are just the top and bottom of the DWEL so they are they only for geometry
   if ((*pb_meta).Add_DWEL gt 0) then begin
-    buf=string(0.0,0.0,0.0,0.0,0,0,0,DWEL_num,0.0,0.0,0.0,0.0,0,0,0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,f14.3)')
+    buf=string(0.0,0.0,0.0,0.0,0,0,0,DWEL_num,0.0,0.0,0.0,0.0,0,0,0,0.0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,2f14.3)')
     buf=strtrim(strcompress(buf),2)
     while (((ii = strpos(buf, ' '))) ne -1) do $
       strput, buf, ',', ii
     printf,tfile,buf
-    buf=string(0.0,0.0,(*pb_meta).DWEL_Height,0.0,0,0,0,DWEL_num,0.0,0.0,0.0,0.0,0,0,0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,f14.3)')
+    buf=string(0.0,0.0,(*pb_meta).DWEL_Height,0.0,0,0,0,DWEL_num,0.0,0.0,0.0,0.0,0,0,0,0.0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,2f14.3)')
     buf=strtrim(strcompress(buf),2)
     while (((ii = strpos(buf, ' '))) ne -1) do $
       strput, buf, ',', ii
@@ -1259,7 +1259,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           x=rg[k]*sin(th*!dtor)*sin(ph*!dtor)
           y=rg[k]*sin(th*!dtor)*cos(ph*!dtor)
           z=rg[k]*cos(th*!dtor)+(*pb_meta).DWEL_Height
-          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,d0_out[k],format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,f14.3)')
+          buf=string(x,y,z,i_scale*d_out[k],k+1,nump_new,shot_num,DWEL_num,rg[k],th,ph,(*pb_stats).range[peaks[k]],j+1,i+1,peaks[k]+1,d0_out[k],return_fwhm[k],format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,2f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
@@ -1308,7 +1308,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         resid[j,i]=0.0
         mean_z[j,i]=0.0
         if ((*pb_meta).zero_hit_option gt 0) then begin
-          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,f14.3)')
+          buf=string(0.0,0.0,0.0,0.0,0,0,shot_num,DWEL_num,0.0,th,ph,0.0,j+1,i+1,0,0.0,0.0,format='(3f14.3,f14.4,2i14,2i14,4f14.3,3i14,2f14.3)')
           buf=strtrim(strcompress(buf),2)
           while (((ii = strpos(buf, ' '))) ne -1) do $
             strput, buf, ',', ii
