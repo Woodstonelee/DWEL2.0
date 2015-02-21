@@ -328,11 +328,15 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   ;=======================================================
   
   ;only use points with positive range greater than focal length
-  pos_r=where((*pb_stats).range le 0.50,nzero)
+  pos_r=where((*pb_stats).range le (*pb_meta).rmin,nzero)
   h=(*pb_stats).range[1]-(*pb_stats).range[0]
   if (h le 0.0) then h=1.0
-  rmax=float((*pb_stats).range[n_elements((*pb_stats).range)-1])
-  if (nzero gt 0) then rmax=float((*pb_stats).range[pos_r[nzero-1]]+h)
+  ;rmax=float((*pb_stats).range[n_elements((*pb_stats).range)-1])
+  if (nzero gt 0) then begin
+    rmax=float((*pb_stats).range[pos_r[nzero-1]]+h)
+  endif else begin
+    rmax=0.5
+  endelse 
   
   print,'rmax=',rmax
   
@@ -426,7 +430,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   value2=float(cross2)
   d_fwhm=1.0/max(value0)
   p_fwhm=d_fwhm*h
-  cross2=0b
+;;  cross2=0b
   l_file=strtrim((*pb_stats).outfile,2)
   if((n_dot le 0) or (n_base-n_dot ne 4)) then begin
     pp_file=strtrim(l_file,2)+'_pulse.txt'
@@ -758,6 +762,9 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   check_ipscal=0.0
   num_ipscal=0L
 
+  pmax = max(p, pmaxind)
+  plen = n_elements(p)
+
   ; Loop through each line, calculate B and apply filter.
   ; Write to output file.
   for i=0,nlines-1 do begin
@@ -933,6 +940,15 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
         ;
         ;Now look over the selected peaks and get (x,y,z,I) values
         ;
+
+        ;; ;; debug
+        ;; print, ''
+        ;; plot, t
+        ;; print, i+1, j+1, peaks
+        ;; print, 'b = ', b[peaks]
+        ;; print, 'b_max = ', max(b[peaks])*cross2[i_val[4]]/cross2[i_val[2]]
+        ;; ;; end of debug
+
         redone=0b
         solveit:
         esum=0.0
@@ -999,9 +1015,54 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           d_out=la_least_squares(ls_mat,ls_rhs,residual=ls_res)
           ls_res=sqrt(abs(float(ls_res))/float(2*nump_new))
           
+          ;; ;; new code to tackle side lobes of large returns
+          ;; ;; ;; debug
+          ;; ;; print, 'after linear solution'
+          ;; ;; print, 'd0_out = ', d_out
+          ;; ;; print, 'ls_res = ', ls_res
+          ;; ;; print, 'r = ', r[peaks]
+          ;; ;; get threshold for d_out for each individual peaks.
+          ;; dthresh = fltarr(nump_new)
+          ;; dsortind = reverse(sort(d_out))
+          ;; tmpflag = bytarr(nump_new)
+          ;; peakflag = bytarr(nump_new) + 1b
+          ;; for k=0, nump_new-1 do begin
+          ;;   if tmpflag[dsortind[k]] then begin
+          ;;     continue
+          ;;   endif 
+          ;;   tmplind = peaks[dsortind[k]] - pmaxind
+          ;;   tmphind = peaks[dsortind[k]] - pmaxind + plen
+          ;;   selectind = where((peaks ge tmplind) and (peaks lt tmphind), tmpcount)
+          ;;   if tmpcount gt 1 then begin
+          ;;     tmpflag[selectind] = 1b
+          ;;     dmax = max(d_out[selectind], dmaxind)
+          ;;     max_k_ind = selectind[dmaxind]
+          ;;     tmpthresh = intensity[selectind] - dmax*p[peaks[selectind]-peaks[max_k_ind]+pmaxind]/pmax + threshold
+          ;;     tmpthresh[dmaxind] = 0.0
+          ;;     dthresh[selectind] = tmpthresh * (r[peaks[selectind]] lt 0.25)
+          ;;   endif else begin
+          ;;     tmpflag[dsortind[k]] = 1b
+          ;;   endelse 
+          ;; endfor 
+          ;; ;; end of new code
+
+          ;; ;; ;; debug
+          ;; ;; print, ''
+          ;; ;; print, 'mean r = ', mean(r[peaks])
+          ;; ;; print, 'dthresh = ', dthresh
+          ;; ;; print, 'd_out = ', d_out
+          ;; ;; print, 'd_out ratio = ', d_out/max(d_out)
+          ;; ;; print, 'r = ', r[peaks]
+          ;; ;; print, 'small thresh', max([cvthresh*max(d_out),sieve_thresh])
+          ;; tmpval = max([cvthresh*max(d_out),sieve_thresh])
+          ;; tmpind = where(dthresh lt tmpval, tmpcount)
+          ;; if tmpcount gt 0 then begin
+          ;;   dthresh[tmpind] = tmpval
+          ;; endif 
+
           if (~redone) then begin
             redone=1b
-            posr=where(d_out gt small_thresh,nposr)
+            posr=where((d_out gt max([cvthresh*max(d_out),sieve_thresh]) ),nposr)
             if (nposr le 0) then begin
               nump_new=0
               peaks=0b
@@ -1010,6 +1071,9 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
             if (nposr lt nump_new) then begin
               peaks=reform(peaks[posr])
               nump_new=nposr
+              ;; new code, check d_out until all d_out meets the dynamic
+              ;; threshold.
+              redone = 0b
               goto,solveit
             endif
             posr=0b
@@ -1021,7 +1085,6 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
             accumd0=accumd0+double(d_out[0])
           endif
           ;
-
           ;Code to save information for debugging the linear solution for overlap
           ;======================================================================
           saving=0b
@@ -1718,7 +1781,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   ;; impossible or unnecessary points useful to remove impossible points
   ;; sdevfac: how many times of standard deviation of noise to determine a
   ;; threshold to filter out noise points.
-  finalsettings = { ptclsettings, $
+  finalsettings = { $
     cal_dat:0, $
     DWEL_az_n:0.0, $ ; unit, deg
     runcode:round(systime(/julian)*10), $
@@ -1727,11 +1790,12 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     save_br:0, $
     save_pfilt:1, $
     zlow:-5.0, $
-    zhigh:100.0, $
+    zhigh:50.0, $
     xmin:-100.0, $
     xmax:100.0, $
     ymin:-100.0, $
     ymax:100.0, $
+    rmin:0.50, $
     sdevfac:2.0, $
     r_thresh:0.4, $
     sievefac:2.0, $
@@ -1770,6 +1834,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   xmax=finalsettings.xmax
   ymin=finalsettings.ymin
   ymax=finalsettings.ymax
+  rmin=finalsettings.rmin
   sdevfac=finalsettings.sdevfac
   r_thresh=finalsettings.r_thresh
   sievefac=finalsettings.sievefac
@@ -2326,6 +2391,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     ymax:ymax,$
     zlow:zlow,$
     zhigh:zhigh,$
+    rmin:rmin,$
     wavelength:wavelength,$
     Zero_Hit_Option:Zero_Hit_Option,$
     Add_DWEL:Add_DWEL,$
@@ -2403,7 +2469,8 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     eff_par:eff_par,$
     s_Factor:s_Factor,$
     pulse:pulse,$
-    p_range:p_range}
+    p_range:p_range,$
+    i_val:i_val}
     
   pb_stats=ptr_new(base_stats,/no_copy)
   pb_info = ''
