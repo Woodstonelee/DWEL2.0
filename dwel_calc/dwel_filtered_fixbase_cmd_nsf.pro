@@ -406,6 +406,11 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
   if (match ge 0) then print,'info match for casing type= ',strtrim(base_info[match],2)
   print,'casing type='+casing_type
 
+  if keyword_set(wire) then begin
+    wireflag = 1b
+  endif else begin
+    wireflag = 0b
+  endelse 
   ;; find wire flag from early basefix
   match = -1
   for i=0,n_elements(base_info)-1 do if (strmatch(base_info[i],'*Wire_Flag*',/fold_case)) then match=i
@@ -419,9 +424,9 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
   endelse
   if (match ge 0) then print,'info match for old wire flag= ',strtrim(base_info[match],2)
   print,'old wire flag=', old_wire_flag
-  if old_wire_flag xor wire then begin
+  if old_wire_flag xor wireflag then begin
     print, 'Wire flag from previous processing is different from input wire setting here in dwel_filtered_fixbase'
-    print, 'Processing still uses your input wire setting = ', wire
+    print, 'Processing still uses your input wire setting = ', wireflag
     print, 'Results may not be correct. Double check wire settings!'
   endif 
     
@@ -1528,7 +1533,7 @@ pro dwel_filtered_fixbase_cmd_nsf, FilteredFile, Inancfile, OutUpdatedFile, get_
     'Descr=DWEL New Filtered Base Fix Settings',$
     'Processing Date Time='+strtrim(systime(),2),$
     'Pulse='+strtrim(pulse_model_name, 2),$
-    'Wire_Flag='+strtrim(string(wire,format='(i14)'),2),$
+    'Wire_Flag='+strtrim(string(wireflag,format='(i14)'),2),$
     'Comment=Tzero is the time at which the peak of the output iterated pulse occurs',$
     'Tzero='+strtrim(string(Tzero,format='(f14.3)'),2),$
     'srate='+strtrim(string(srate,format='(f14.2)'),2),$

@@ -1313,7 +1313,8 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
           range_right=rg[k]+range_extent
           posext=where(((*pb_stats).range ge range_left) and ((*pb_stats).range le range_right),nposext)
           if nposext gt 0 then begin
-            return_fwhm[k] = total(tmpwf[posext])/d_out[k]
+            ; fwhm is in unit of meter, the same with input cube waveform
+            return_fwhm[k] = total(tmpwf[posext])/d_out[k]*(wl[1]-wl[0])
           endif
         endfor
         

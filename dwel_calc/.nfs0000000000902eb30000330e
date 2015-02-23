@@ -1358,19 +1358,13 @@ pro DWEL_Baseline_Sat_Fix_cmd_nsf, DWELCubeFile, ancillaryfile_name, out_satfix_
   endif
   ;======================================================================
   
-  if keyword_set(wire) then begin
-    wireflag = 1
-  endif else begin
-    wireflag = 0
-  endelse 
-
   DWEL_base_fix_info=strarr(21)
   DWEL_base_fix_info=[$
     'Program=DWEL_Baseline_Sat_Fix_Cmd_NSF',$
     'Descr=DWEL New Base Fix Settings with casing power',$
     'Processing Date Time='+strtrim(systime(),2),$
     'Pulse='+strtrim(pulse_model_name,2),$
-    'Wire_Flag='+strtrim(string(wireflag,format='(i14)'),2),$
+    'Wire_Flag='+strtrim(string(wire,format='(i14)'),2),$
     'Comment=Tzero is the time at which the peak of the output pulse occurs',$
     'Tzero='+strtrim(string(Tzero,format='(f14.3)'),2),$
     'srate='+strtrim(string(srate,format='(f14.2)'),2),$
