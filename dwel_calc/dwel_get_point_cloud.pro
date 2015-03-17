@@ -1519,9 +1519,13 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
   
   check_ipscal=check_ipscal/float(num_ipscal)
 
-  ;get d-stats
+  ;get d-stats, overlap-corrected peak intensity in apparent reflectance if
+  ;calibration is applied, otherwise in DN same with d0
   image_statistics, d_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
   ;; d_accum[pos_mask]=4095.0*(d_accum[pos_mask]-emin)/(emax-emin)
+  if (*pb_stats).cal_dat then begin
+    d_accum = d_accum*i_scale
+  endif
   print,'mean corrected intensity=',emean
   
   pb_info=[$
@@ -1532,9 +1536,9 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     +strtrim(string(esdev),2)+')' $
     ]
     
-  ;get d-stats
+  ;get d0-stats, overlap-corrected peak intensity in DN, no calibration
   image_statistics,d0_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
-  d0_accum[pos_mask]=4095.0*(d0_accum[pos_mask]-emin)/(emax-emin)
+  ;; d0_accum[pos_mask]=4095.0*(d0_accum[pos_mask]-emin)/(emax-emin)
   print,'mean corrected uncalibrated intensity=',emean
   
   pb_info=[pb_info,$
@@ -1545,6 +1549,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     ]
     
   ;get I stats
+  ; I is not calibrated
   image_statistics,sum_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
   sum_accum[pos_mask]=4095.0*(sum_accum[pos_mask]-emin)/(emax-emin)
   print,'mean I sum=',emean
@@ -1557,6 +1562,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
     ]
     
   ;get I2 stats
+  ; I2 is not calibrated
   image_statistics,i2_accum,mask=tmask,minimum=emin,maximum=emax,mean=emean,stddev=esdev
   i2_accum[pos_mask]=4095.0*(i2_accum[pos_mask]-emin)/(emax-emin)
   print,'mean I2 sum=',emean
@@ -2502,7 +2508,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
   tname=(*pb_stats).oi_name
   ;write out header for info image
   descrip='Info image for Point Cloud '+strtrim(out_file,2)
-  bnames=['Nhits','Total d','Total d0','Total I','Total I2','First_Hit','Mean_Range*100','Last_Hit','Zenith*100','Azimuth*100','Residual','Gap','Mask','Mean_z']
+  bnames=['Nhits','Total d','Total d0','Total I (rescale 0-4095)','Total I2 (rescale 0-4095)','First_Hit','Mean_Range*100','Last_Hit','Zenith*100','Azimuth*100','Residual (rescale 0-4095)','Gap','Mask','Mean_z']
   envi_setup_head,fname=tname,ns=nsamples,nl=nlines,nb=14,$
     xstart=0,ystart=0,$
     data_type=3, interleave=0, bnames=bnames, $
