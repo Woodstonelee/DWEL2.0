@@ -9,36 +9,37 @@ function dwel_eff_oz, wavelength, range, par=par
   ;keyword argument, par: parameters of telescope efficiency
   ; Returned value is an array with same dimensions as range.
   ;
+  ; k(r) model function in latex:
+  ; P_r(r) = \frac{C_0 \cdot \rho}{r^b} \cdot \frac{1}{ \left(
+  ; 1+C_1\cdot e^{-C_2\cdot r} \right)^ {C_3} }
+
   if n_elements(par) ne 0 or arg_present(par) then begin
     c1 = par[0]
     c2 = par[1]
     c3 = par[2]
-    c4 = par[3]
   endif else begin
     if (wavelength eq 1064) then begin
-      c1=6580.330d0
-      c2=0.3553d0
-      c3=43.396d0
-      c4=6580.330d0
+      c1=0.000071d0
+      c2=0.383203d0
+      c3=104574.246266d0
     endif
     if (wavelength eq 1548) then begin
-      c1=4483.089d0
-      c2=0.7317d0
-      c3=19.263d0
-      c4=4483.089d0
+      c1=0.000071d0
+      c2=0.445864d0
+      c3=104574.246266d0
     endif
   endelse
-  zero=1.0d0/(1.0d0+double(c1)*exp(-double(c2)*double(c3)))^c4
+  zero=1.0d0/(1.0d0+double(c1)*exp(-double(c2)))^c3
   num_range=n_elements(range)
   valid = where(range gt 0.05, nvalid, compl=invalid, ncompl=n)
   eff_oz = cmreplicate(1.0,num_range)
   if (n gt 0) then eff_oz[invalid] = float(zero)
   if (nvalid gt 0) then begin
     logK=dblarr(nvalid)
-    logK=cmreplicate(double(c2),nvalid)*(double(range[valid])+cmreplicate(double(c3),nvalid))
+    logK=cmreplicate(double(c2),nvalid) * (double(range[valid]))
     pos=where(logK gt 30.0d0,npos)
     if (npos gt 0) then logK[pos]=30.0d0
-    logK=cmreplicate(double(c4),nvalid)*alog(cmreplicate(1.0d0,nvalid)+cmreplicate(double(c1),nvalid)*exp(-logK))
+    logK=cmreplicate(double(c3),nvalid)*alog(cmreplicate(1.0d0,nvalid)+cmreplicate(double(c1),nvalid)*exp(-logK))
     eff_oz[valid] = float(exp(-logK))
   endif
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

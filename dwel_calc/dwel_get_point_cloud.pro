@@ -1806,7 +1806,7 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
     sdevfac:2.0, $
     r_thresh:0.4, $
     sievefac:2.0, $
-    cal_par:dblarr(6)-1.0 $ ;[c0, c1, c2, c3, c4, b]
+    cal_par:dblarr(5)-1.0 $ ;[c0, c1, c2, c3, b]
     }
   ;; tag names we need in settings
   setting_tag_names = tag_names(finalsettings)
@@ -2096,21 +2096,21 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
           ;; 2.305 is the nominal scale factor by onboard lambertian target
           ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
           ;; 1300 is the laser power setting of calibration scans.
-          dwel_cal = 5863.906d0*0.984807753*6.583
-          rpow = 1.402d0 ;; NSF DWEL
-          eff_par = [3413.743d0, 0.895d0, 15.640d0, 3413.743d0]
+          dwel_cal = 5788.265818d0*0.984807753*6.583
+          rpow = 1.384297d0 ;; NSF DWEL
+          eff_par = [0.000319d0,0.808880d0,25176.835032d0]
         endif else begin
           ;; no-wire, same with wire-removed
-          dwel_cal = 5863.906d0*0.984807753*6.583
-          rpow = 1.402d0 ;; NSF DWEL
-          eff_par = [3413.743d0, 0.895d0, 15.640d0, 3413.743d0]
+          dwel_cal = 5788.265818d0*0.984807753*6.583
+          rpow = 1.384297d0 ;; NSF DWEL
+          eff_par = [0.000319d0,0.808880d0,25176.835032d0]
         endelse
       endif
       if strcmp(laser_man, 'keopsys', /fold_case) then begin
-        ;; from David, on 20141220
-        dwel_cal = 2052936.432d0
-        rpow = 1.9056d0
-        eff_par = [6580.330d0, 0.3553d0, 43.396d0, 6580.330d0]
+        ;; fitting with Oz20140425 by Zhan Li as of 20150317
+        dwel_cal = 41814.061908d0*0.984807753*17.376
+        rpow = 1.624433d0
+        eff_par = [0.000071d0,0.383203d0,104574.246266d0]
       endif
     endif else begin
       if strcmp(laser_man, 'manlight', /fold_case) then begin
@@ -2122,28 +2122,28 @@ pro dwel_get_point_cloud, infile, ancfile, outfile, err, Settings=settings
           ;; 2.305 is the nominal scale factor by onboard lambertian target
           ;; 0.984807753 is cosine(10 deg), panels were put 10 degrees slant
           ;; 1300 is the laser power setting of calibration scans.
-          dwel_cal = 20543.960d0*0.984807753*5.064
-          rpow = 1.566d0 ;; NSF DWEL
-          eff_par = [5.133d0, 0.646d0, 1.114d0, 5.133d0]
+          dwel_cal = 22054.218342d0*0.984807753*5.064
+          rpow = 1.585985d0 ;; NSF DWEL
+          eff_par = [0.000319d0,0.540762d0,25176.835032d0]
         endif else begin
           ;; no-wire, same with wire-removed
-          dwel_cal = 20543.960d0*0.984807753*5.064
-          rpow = 1.566d0 ;; NSF DWEL
-          eff_par = [5.133d0, 0.646d0, 1.114d0, 5.133d0]
+          dwel_cal = 22054.218342d0*0.984807753*5.064
+          rpow = 1.585985d0 ;; NSF DWEL
+          eff_par = [0.000319d0,0.540762d0,25176.835032d0]
         endelse
       endif
       if strcmp(laser_man, 'keopsys', /fold_case) then begin
-        ;; from David, on 20141220
-        dwel_cal = 712237.602d0
-        rpow = 1.9056d0
-        eff_par = [4483.089d0, 0.7317d0, 19.263d0, 4483.089d0]
+        ;; fitting with Oz20140425 by Zhan Li as of 20150317
+        dwel_cal = 88357.438795d0*0.984807753*7.3
+        rpow = 1.670920d0
+        eff_par = [0.000071d0,0.445864d0,104574.246266d0]
       endif
     endelse
   endif else begin
     ;; user has provided a valid calibration parameter set.
     dwel_cal = cal_par[0]
-    rpow = cal_par[5]
-    eff_par = cal_par[1:4]
+    rpow = cal_par[4]
+    eff_par = cal_par[1:3]
   endelse
   
   ;set up the calibration as far as possible
