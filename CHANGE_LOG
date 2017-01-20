@@ -1,15 +1,15 @@
 Change logs of DWEL2.0 programs
 
-Old version: David Jupp's CSIRO DWEL programs as of September 2014
+* Heritage version from which this repository is based upon:
+  **David Jupp's CSIRO DWEL programs as of September 2014**
 
-Changes made by: Zhan Li, zhanli86@bu.edu
-
-Changes made as of 20141025
-
---------------------------------------------------------------------------------
+Version as of 20141025
+======================
+* Changes made by: Zhan Li, zhanli86@bu.edu
+* Changes made as of: 20141025
 
 A few minor Notes to David
-==========================
+--------------------------
 - dwel2.0_idl.pre is just for me run programs in IDL terminal mode on linux. It adds all subdirectories of the code directory to IDL paths. 
 - dwel_jitter_fix folder contains all stuff for fixing jittering in our old data. You can ignore it. 
 - I reformatted all indentations in all files just for easy reading and comparison for myself. If the new format doesn't fit to your habit, just ignore them. 
@@ -17,7 +17,7 @@ A few minor Notes to David
 - About the changes involved with shift from Oz to NSF for our use here, you can simply search 'nsf' in a script and spot those changes. Supposedly you can replace all 'nsf' with 'oz'. 
 
 Processed file naming convention
-================================
+--------------------------------
 - HDF5 to ENVI cube: xx_cube.img, xx_cube_ancillary.img
 - baseline and saturation fix: xx_cube_bsfix.img, xx_cube_bsfix_ancillary.img
 - ancillary file to AT/HS projection: xx_[processing_stage_name]_ancillary_at[/hs]_project.img
@@ -27,7 +27,7 @@ Processed file naming convention
 - point cloud generation: xx_cube_bsfix_pulsexc_update_at_project_ptcl_pcinfo.img, xx_cube_bsfix_pulsexc_update_at_project_ptcl_points.txt, xx_cube_bsfix_pulsexc_update_at_project_ptcl_pfilter.img
 
 Shift from Oz version to NSF version
-====================================
+------------------------------------
 - Change routine names, header information and related default parameters to NSF from Oz version. The involved routines are list here. 
 - All routines in the folder of dwel_calc.
 - dwel_set_theta_phi_nsf.pro
@@ -35,47 +35,47 @@ Shift from Oz version to NSF version
 - dwel_itpulse_model_dual_nsf.pro 
 
 dwel2cube_cmd to dwel_hdf2cube_cmd
-==================================
+----------------------------------
 - This might sound crazy but I like the routine names in a similar or uniform fashion. I changed dwel2cube_cmd to dwel_hdf2cube_cmd. You can adopt it or ignore it. Just name changing. 
 
 dwel_anc2at
-===========
+-----------
 - Add a keyword argument "Overlap" to the procedure. If users use this keyword argument and provide a number for degrees of azimuthal overlapping area in the output projection, the projection image will be made with such degrees of overlapping. If users do not use this keyword argument, the output image will have all overlapping area from the input scanning data cube. If user-defined overlapping area is larger than the actual overlap in the input data, only actual overlap will be projected and some information will be output to the IDL console during running. 
 - Add a record in the header file, "Overlap" to record the degrees of overlap area. 
 - Add a record in the header file, 'Angular scale' to record the scale factor of angles. 
 
 dwel_anc2at & dwel_cube2at
-==========================
+--------------------------
 - Flip the direction of zenith dimension in the projection image. Now the equal-angle projection will give you the same look that you will see from the actual environment. 
 - Remove dwel_val_block. Those constant values are no long used in the routines. Instead IDL's own constant values are used including: !pi, !radeg, !dtor. 
 
 t_andrieu_tp2xy & t_andrieu_xy2tp
-=================================
+---------------------------------
 - Remove old constant value declaration because they are no long used in the routines. Instead IDL's own constant values are used including: !pi, !radeg, !dtor.
 
 dwel_baseline_sat_fix_cmd
-=========================
-- Laser power variation correction. Use median filter on return intensities from lambertian target over scan lines. The window size of the median filter is decided as following. I checked Glenn's post about temperature variation on DWEL's google site, https://sites.google.com/a/bu.edu/dwel_lidar/optics/1064internaltemperatureincreasetrends. From the data of power/temp v.s. time collected by Glenn, at the beginning of a scan, even within 0.5 min, the temp and power could change significantly! If we choose 0.5 min, we have about 30 sec * 2000 pulses/sec / 3142 pulses/scan line (at 2mrad scanning resolution) = 19 scan lines. We could choose 20 scan lines as the window size of the median filter.
+-------------------------
+- Laser power variation correction. Use median filter on return intensities from lambertian target over scan lines. The window size of the median filter is decided as following. I checked Glenn's post about temperature variation on DWEL's google site, https://sites.google.com/a/bu.edu/dwel_lidar/optics/1064internaltemperatureincreasetrends. From the data of power/temp v.s. time collected by Glenn, at the beginning of a scan, even within 0.5 min, the temp and power could change significantly! If we choose 0.5 min, we have about 30 sec * 2000 pulses/sec / 3142 pulses/scan line (at 2mrad scanning resolution) - 19 scan lines. We could choose 20 scan lines as the window size of the median filter.
 
 dwel_get_point_cloud
-====================
+--------------------
 - Correct b_thresh in dwel_get_point_cloud. Because we have scaled waveforms in the dwel_filtered_fixbase_cmd processing procedure, the standard deviation of background base level needs to be scaled accordingly to reflect correct noise level and derive appropriate b_thresh here.
 - Add a keyword argument to take user defined settings. If users do not use this keyword argument, all settings will be set to default values now stored inside the script of this procedure. If users use this keyword but only provide several user-defined values, these values will be used and the rest values in the settings will be set default. 
 
 dwel_filtered_fixbase_cmd
-=========================
+-------------------------
 - Change the output range because from NSF data I found the old range [-5.0, 95.0] is too large for a few waveforms to have enough samples. Now [-5.0, 93.5]. 
 
 New: dwel_anc2hs & hs_tp2xy & hs_xy2tp
-======================================
+--------------------------------------
 - Add a new routine "dwel_anc2hs" based on old EVI routine to project ancillary file to hemispherical projection. 
 
 New: dwel_swop_pulse_xc
-=======================
+-----------------------
 - Add a new routine to combine two steps: dwel_general_filter and dwel_filtered_fixbase_cmd. Now users don't have to worry about swopping pulse models. This new routine takes care of it. 
 
 Minor changes
-=============
+-------------
 - Uniform the format of records in the header files. Now all DWEL records use space in record names. Before underscore and spacee were mixedly used. 
 - Change the band "mean" in the projection extrinfo image from mean of absolute to simple mean. 
 - Add more comments in several routines. Add documentation comments at the begining of a procedure in several scripts. Will add documentation scripts to all procedures later. 
