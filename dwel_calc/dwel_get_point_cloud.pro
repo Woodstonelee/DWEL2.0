@@ -219,7 +219,7 @@ pro dwel_apply_ptcl_filter, p, pb_stats, pb_meta, pb_info, error=error
       error=3
       goto, cleanup
     endif
-    printf,pbrfile,strtrim('X,Y,Z,d_I,Return_Number,Number_of_Returns,range,Sample,Line,Band,d0,b,r,local_rms,local_skewness',2)
+    printf,pbrfile,strtrim('// X,Y,Z,d_I,Return_Number,Number_of_Returns,range,Sample,Line,Band,d0,b,r,local_rms,local_skewness',2)
     printf,pbrfile,strtrim('// [DWEL Point Cloud Debugging Data]',2)
     printf,pbrfile,strtrim('// Run made at: '+time_date,2)
     flush,pbrfile
